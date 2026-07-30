@@ -9,6 +9,7 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { sendEmail } from "../_shared/resend.ts";
 import { esEmailTest, modoTestActivo } from "../_shared/gate.ts";
+import { exigirEquipo } from "../_shared/autorizacion.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGIN") ?? "http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
@@ -53,10 +54,13 @@ Deno.serve(async (req) => {
     Deno.env.get("SB_SECRET_KEY")!,
   );
 
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return responder({ error: "Necesitas iniciar sesión", code: "unauthorized" }, 401);
+  // Sesión + equipo interno: mandar una oferta por correo es una acción del equipo,
+  // no de un usuario externo. La función corre con service_role, así que RLS no la
+  // cubre y la comprobación tiene que estar aquí.
+  const auth = await exigirEquipo(supabase, req);
+  if ("rechazo" in auth) {
+    const { error, code, status } = auth.rechazo;
+    return responder({ error, code }, status);
   }
 
   try {

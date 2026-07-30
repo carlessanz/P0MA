@@ -8,6 +8,7 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { priorizar } from "../_shared/priorizacion.ts";
 import type { EntidadPriorizable, ExcedenteContexto } from "../_shared/priorizacion.ts";
+import { exigirEquipo } from "../_shared/autorizacion.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGIN") ?? "http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
@@ -49,11 +50,13 @@ Deno.serve(async (req) => {
     Deno.env.get("SB_SECRET_KEY")!,
   );
 
-  // La plataforma valida la firma del JWT; aquí se confirma que hay un usuario real.
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return json({ error: "Necesitas iniciar sesión", code: "unauthorized" }, 401);
+  // Sesión + equipo interno: el ranking devuelve nombre, población y teléfono de las
+  // entidades candidatas, así que es información del equipo. La función corre con
+  // service_role (BYPASSRLS): sin esta comprobación, cualquier cuenta lo obtendría.
+  const auth = await exigirEquipo(supabase, req);
+  if ("rechazo" in auth) {
+    const { error, code, status } = auth.rechazo;
+    return json({ error, code }, status);
   }
 
   try {

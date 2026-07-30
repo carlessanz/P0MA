@@ -107,8 +107,8 @@ derivacion_espigueo, historial_estado, webhook_log y catálogos.
 | Objetivo (funcional) | Hoy (repo) | Estado |
 | --- | --- | --- |
 | `organizacion` multirol única | `productores` + `entidades` (2 tablas, sin multirol; doble rol por teléfono + prioridad del webhook) | 🟡 |
-| `usuario` de organización | — (solo cuentas del equipo, `AuthGate`) | ⬜ |
-| `rol_organizacion` | — (rol implícito por tabla) | ⬜ |
+| `usuario` de organización | `perfiles` + `membresias` (vincula la cuenta con su ficha; §4bis) | ✅ |
+| `rol_organizacion` | `membresias.rol_org` (titular/operador) + `usuario_roles` de plataforma | 🟡 |
 | `convenio` de colaboración | — | ⬜ |
 | `excedente` | `excedentes` | ✅ |
 | `demanda` | — | ⬜ |
@@ -128,7 +128,7 @@ derivacion_espigueo, historial_estado, webhook_log y catálogos.
 | `webhook_log` | `wa_messages.raw` (jsonb) | 🟡 |
 | catálogos (categorías/unidades/motivos/destinos) | `productos`/`causas`/`factores_conversion` | 🟡 |
 | back office, cola de **aprobaciones**, Super Admin | — (cualquier `authenticated` publica/edita) | ⬜ |
-| **roles y permisos** | — (sin roles; deuda §12.2) | ⬜ |
+| **roles y permisos** | RLS por rol y organización desplegada, con interruptor `roles_activos` **todavía apagado** (§4bis) | 🟡 |
 | parte pública / catálogo público | — (todo tras `AuthGate`) | ⬜ |
 | **modelo asistido** | de facto: el equipo opera todo desde el panel | 🟡 |
 | multiidioma `ca`/`es` | i18n propio (`src/lib/i18n.tsx`) | ✅ |
@@ -210,6 +210,8 @@ scripts/
   import-ara.ts                Importación idempotente de los 5 CSV maestros
   crear-usuario.ts             Alta de cuentas por la Admin API (no envía correos)
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
+  comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
+  sql/rls-emergencia.sql       Paracaídas: restaura las políticas permisivas (NO es migración)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
 supabase/
   config.toml                  Config del CLI (puertos 553xx, ver §7)
@@ -221,6 +223,7 @@ supabase/
     _shared/priorizacion.ts    Puntuación de entidades (pura, sin red)
     _shared/respuestas.ts      Captura el sí/no de una entidad a una oferta (aceptación, §5)
     _shared/gate.ts            Gate de envío: esTelefonoTest/esEmailTest + modoTestActivo (modo test global, §8)
+    _shared/autorizacion.ts    Autorización por rol: contextoUsuario/exigirEquipo (§4bis; service_role ignora RLS)
     priorizar-entidades/       POST: ranking de entidades para un excedente (JWT)
     whatsapp-send/index.ts     POST: reglas de envío; delega en _shared
     whatsapp-webhook/index.ts  GET verificación / POST recepción; respuesta a oferta + intake
@@ -339,21 +342,24 @@ Las tablas POMA sí tienen foreign keys. Las de mensajería **no**: `productores
 
 ### RLS y GRANTs — hacen falta LAS DOS capas
 
-`service_role` acceso total en todas (lo usan las Edge Functions); **`authenticated`** con
-`SELECT` en todas y, además, escritura donde el panel la necesita: `INSERT`/`UPDATE` en
-`wa_contacts`; `INSERT`/`DELETE` en `meta_test_recipients` (whitelist gestionada desde el
-Dashboard); **`INSERT`/`UPDATE`/`DELETE` en `productores` y `entidades`** (CRUD del panel,
-`20260722140000_crud_productores_entidades.sql`); **`INSERT`/`UPDATE`/`DELETE` en
-`oferta_respuestas`** (el panel registra el envío y marca a mano; §6ter); **`DELETE` en
-`wa_messages` y `wa_contacts`** (borrar hilos de conversación desde el panel,
-`20260723120000_borrar_conversaciones.sql`); **`INSERT`/`UPDATE`/`DELETE` en `canalizaciones` y
-`UPDATE` en `excedentes`** (aprobar/canalizar, kg reales, cancelar/no_colocada, «disponible fins»;
-`20260724100000_rls_gestiona_canalizaciones_excedentes.sql` — antes solo tenían `SELECT` y el panel
-fallaba con «new row violates row-level security policy»). `anon` **no tiene ningún privilegio** desde
-`20260721160000_auth_authenticated.sql`. Sin `INSERT` en `wa_messages` para nadie salvo el
-servidor: el envío pasa siempre por la Edge Function. `app_config` es **solo
-`service_role`** (§9). Realtime en `wa_contacts`, `wa_messages`, `excedentes`, `canalizaciones`
-y `oferta_respuestas`.
+**Los GRANT dicen qué operaciones puede intentar un rol; las políticas, sobre qué filas.** El
+reparto por rol de plataforma y por organización vive en **§4bis** (tabla `usuario_roles`,
+`membresias` y el interruptor `roles_activos`); aquí queda el mapa de privilegios.
+
+`service_role` acceso total en todas (lo usan las Edge Functions, y además ignora RLS por
+`BYPASSRLS`). `anon` **no tiene ningún privilegio** desde `20260721160000_auth_authenticated.sql`.
+**`authenticated`** tiene `SELECT` en todas —las políticas de §4bis deciden qué filas— más
+escritura donde hace falta: `INSERT`/`UPDATE`/`DELETE` en `wa_contacts`, `productores`, `entidades`,
+`canalizaciones`, `oferta_respuestas` y `productor_ubicaciones`; `DELETE` en `wa_messages`;
+`UPDATE` en `excedentes`; `INSERT`/`DELETE` en las dos whitelists de test; `SELECT`/`INSERT`/
+`UPDATE` en `app_settings`. Casos deliberadamente cerrados a nivel de GRANT, antes incluso de
+evaluar RLS: **sin `INSERT` en `wa_messages`** (el envío pasa siempre por la Edge Function), **sin
+`INSERT` en `excedentes`** (los crea el servidor, que es quien genera `id_excedente` y
+`texto_oferta`), **sin escritura en `usuario_roles` ni `membresias`** (la escalada de privilegios
+sería imposible aunque una política fallara), y `perfiles` con **`GRANT UPDATE` por columnas**
+(`nombre`, `telefono`, `idioma`, `vista_defecto`: nadie reactiva su propia cuenta). `app_config` es
+**solo `service_role`** (§9). Realtime en `wa_contacts`, `wa_messages`, `excedentes`,
+`canalizaciones` y `oferta_respuestas`.
 
 **Las políticas RLS por sí solas no bastan.** Supabase ya no expone automáticamente las
 tablas nuevas del esquema `public` a los roles de la Data API
@@ -365,6 +371,108 @@ Los GRANT están en `20260721120200_grants_data_api.sql`, que además fija
 `alter default privileges` para que las tablas futuras los hereden. **Si creas una tabla
 nueva, comprueba que es accesible**:
 `select has_table_privilege('authenticated','public.X','SELECT')`.
+
+## 4bis. Identidad, roles y permisos
+
+Hasta 2026-07-30 **no existía ningún modelo de usuario**: solo la sesión de Supabase Auth, y
+`AuthGate` era binario (hay sesión → acceso total a las 452 fichas). Esto es lo que lo sustituye.
+Es la base de los paneles por rol (productor / receptor / equipo interno).
+
+### Tablas
+
+**`perfiles`** — 1:1 con `auth.users` (`20260730090000_perfiles_roles_membresias.sql`): `id` (FK a
+`auth.users`, on delete cascade), `email`, `nombre`, `telefono`, `idioma` (`ca`/`es`),
+`vista_defecto` (`intern`·`productor`·`receptor`), **`activo`**, `created_at`, `updated_at`. Un
+trigger `on_auth_user_created` crea el perfil al dar de alta la cuenta. Poner `activo=false` corta
+el acceso **en la consulta siguiente**: el rol se consulta en cada política, no viaja en el JWT.
+
+**`usuario_roles`** — rol de **plataforma** (equipo interno), PK `(user_id, rol)`. Vocabulario:
+`super_admin` > `admin` > `tecnic`. Los usuarios **externos no tienen fila aquí**: su acceso sale
+solo de `membresias`.
+
+| Rol | Qué añade |
+| --- | --- |
+| `tecnic` | Opera el día a día: ofertas, mensajería, fichas |
+| `admin` | Además: aprueba y canaliza, gestiona las whitelists de test |
+| `super_admin` | Además: apaga el modo test (`app_settings`) y borra fichas |
+
+**`membresias`** — enlaza una cuenta con una ficha: `user_id`, `tipo` (`productor`/`entidad`),
+`productor_id` **o** `entidad_id` (check de FK excluyente), `rol_org` (`titular`/`operador`),
+`activo`. **Decisión de modelo**: no se crea todavía la `organizacion` unificada del funcional
+(§1bis, brecha 2) porque exigiría deduplicar 111 entidades sin clave única y reescribir el panel;
+las membresías ya cubren los dos casos reales —**doble rol** productor+entidad (dos filas) y varios
+usuarios por organización (N filas)— sin tocar nada de lo que hay.
+
+**`entidades.tipo_receptor`** (`20260730091000_entidades_tipo_receptor.sql`) — `social` · `animal` ·
+`transformador` · `comercial`. `modalitat` no servía: es texto libre, admite null y no puede
+expresar «alimentació animal». Se **deriva** de `modalitat` lo que se puede y el resto queda `null`
+para triaje manual desde la ficha (mismo criterio que `productes_frescos`). ⚠️ Mientras
+`tipo_receptor` sea `null`, esa entidad **no ve ninguna oferta** en su panel, pero sigue apareciendo
+en la priorización interna (que corre con `service_role`).
+
+**`modalitat_receptor_compat`** — matriz oferta↔receptor **en tabla**, no escrita a mano en las
+políticas: `donacio`→social/animal/transformador, `venda`→comercial/transformador,
+`maquila`→transformador. Cambiar la regla de negocio es un `insert`/`delete`.
+
+### El interruptor `roles_activos`
+
+`app_settings.roles_activos` (`'false'` de fábrica). Todos los helpers de rol empiezan por
+`not roles_activos() or …`: **con el interruptor apagado el comportamiento es exactamente el de
+antes** (cualquier autenticado lo puede todo), y encenderlo es el único paso que cambia algo. Se
+revierte con el mismo `update`, en segundos, sin desplegar y sin cerrar sesiones.
+
+Es un **fail-open deliberado**, al revés que el fail-safe de `test_mode` (§8): allí la duda debe
+cortar un envío; aquí la duda no debe dejar al equipo sin poder trabajar.
+
+### Helpers (`20260730092000_funciones_sesion_y_rol.sql`)
+
+Todos `stable security definer set search_path = public, pg_temp`, con `revoke execute … from
+public, anon`. Son `security definer` para poder consultarse **desde una política** sin recursión:
+⚠️ por eso **nunca** hay que poner `force row level security` en `perfiles`/`usuario_roles`/
+`membresias`.
+
+`roles_activos()` · `es_intern()` · `pot_aprovar()` · `es_super_admin()` · `mi_rol()` ·
+`mis_productores()` · `mis_entidades()` · `soc_titular(tipo, org)` ·
+**`get_my_session_context()`** (una llamada al entrar: rol, `vista_defecto` y organizaciones, para
+decidir qué panel se pinta).
+
+En las políticas van envueltos en `(select …)` para que el planner los evalúe **una vez por
+consulta** (InitPlan) y no una vez por fila.
+
+### Escrituras por RPC (`20260730097000_rpc_paneles_externos.sql`)
+
+RLS no sabe restringir por columna, ni comparar con el valor anterior de una fila, ni agrupar varias
+escrituras en una transacción. Por eso la superficie de escritura de los paneles externos son
+funciones, no políticas:
+
+| RPC | Qué hace |
+| --- | --- |
+| `manifestar_interes(excedente, entidad, kg, preu, caixes)` | El receptor acepta desde el panel. Deja la fila igual que el diálogo de WhatsApp (`acceptada` + `aprovacio='pendent'`, `canal='panel'`), así **cae en la misma cola de aprobación** que ya existe. Valida compatibilidad y `preu_minim` |
+| `aprovar_resposta(resposta, kg, preu, motiu)` | Aprobar y canalizar **en una transacción** (hoy `OfferDetail` hace 3-4 llamadas sueltas). Exige `pot_aprovar()` |
+| `actualizar_mi_productor(…)` / `actualizar_mi_entidad(…)` | Autoedición con **lista blanca**: nunca `es_test`, `activo`, `codigo`, `conveni`, `prioritat`, `estat` |
+| `cancelar_meva_oferta(excedente, motiu)` | El productor cancela la suya. Editarla no: el `texto_oferta` ya circuló |
+
+Además, el trigger `respuestas_control_aprovacio` impide mover `aprovacio`/`canalizacion_id` a quien
+no puede aprobar, incluso si alguien relajara las políticas (cierra la deuda §12.18).
+
+### Autorización de las Edge Functions — capa aparte
+
+`service_role` tiene **`BYPASSRLS`**: las Edge Functions no se ven afectadas por RLS, ni para bien
+ni para mal. Sin una comprobación propia, cualquier cuenta con sesión podría enviar WhatsApp o
+priorizar entidades. `_shared/autorizacion.ts` (`contextoUsuario`, `exigirEquipo`) se aplica en
+**`whatsapp-send`**, **`enviar-email`** y **`priorizar-entidades`**, y respeta el mismo interruptor
+que la base. Devuelve `401 unauthorized` sin sesión y `403 forbidden` si no es del equipo.
+
+### Verificación
+
+`deno run -A scripts/comprobar-rls.ts` (§11): abre sesión real con cada cuenta —con la publishable
+key, como el navegador— y comprueba una matriz declarativa de *(cuenta, tabla, operación) →
+permitir/denegar*. Es la primera comprobación automática del proyecto que no es `tsc`. Las
+credenciales viven en `scripts/data/cuentas-prueba.json` (fuera de git).
+
+Si algo sale mal: **Nivel 0**, `update app_settings set value='false' where key='roles_activos';`
+(10 segundos). **Nivel 1**, `scripts/sql/rls-emergencia.sql`, que vive **fuera** de
+`supabase/migrations/` para que `db push` no lo aplique nunca.
 
 ## 5. Flujos
 
@@ -730,6 +838,8 @@ cierre real (kg reales, albaranes, o marcar `no_colocada` con motivo).
 | Pieza | Cómo se protege |
 | --- | --- |
 | Datos (PostgREST) | RLS + GRANT sobre `authenticated`. `anon` no tiene ningún privilegio: responde `42501 permission denied` |
+| **Rol y organización** | Tablas `usuario_roles` y `membresias` (§4bis). El rol **no viaja en el JWT**: se consulta en cada política, así que desactivar una cuenta corta el acceso al instante en vez de esperar a que caduque el token |
+| **Edge Functions con JWT** | `exigirEquipo()` de `_shared/autorizacion.ts` en `whatsapp-send`, `enviar-email` y `priorizar-entidades`. Hace falta porque corren con `service_role`, que **ignora RLS** (§4bis) |
 | `whatsapp-send` | Desplegada **con** verificación de JWT (sin `--no-verify-jwt`) y además comprueba `getUser(token)` |
 | `whatsapp-webhook` | Sigue con `--no-verify-jwt` porque Meta no envía JWT; se valida la firma `X-Hub-Signature-256` |
 | Alta de cuentas | Solo con la Admin API (`scripts/crear-usuario.ts`). El registro público está desactivado |
@@ -757,10 +867,16 @@ apagado y en test). Detalle:
 
 ### Lo que sigue pendiente
 
-- `enable_signup = false` vive en `config.toml`; si alguien lo reactiva,
-  cualquiera podría registrarse y **leer toda la base**, porque las políticas dan
-  acceso a cualquier usuario autenticado. No hay todavía roles ni permisos por
-  persona.
+- **El modelo de roles existe pero está apagado.** Las políticas por rol y por organización ya están
+  desplegadas (§4bis), pero `app_settings.roles_activos` vale `'false'`, así que de momento cualquier
+  cuenta autenticada sigue viéndolo y pudiéndolo todo, igual que antes. Encenderlo es un `update` de
+  una fila; hasta entonces, **dar de alta una cuenta sigue equivaliendo a dar acceso total**.
+- Antes de encender el interruptor hay que promover a mano al menos un `super_admin`
+  (`20260730093000_seed_equipo_interno.sql` deja a todo el equipo como `admin`), o nadie podrá tocar
+  el modo test ni borrar fichas.
+- `enable_signup = false` vive en `config.toml`; si alguien lo reactiva, cualquiera podría
+  registrarse. Con los roles apagados eso significa acceso a toda la base; con los roles encendidos,
+  una cuenta sin rol ni membresía no ve nada.
 - Los datos personales **ya están en remoto**: 341 productores y 111 entidades, importados
   el 21-07-2026. Lo único que los protege es la autenticación de arriba; verificado que con
   la publishable key las tablas responden `42501`. Dar de alta una cuenta equivale a dar
@@ -848,10 +964,24 @@ supabase secrets set --env-file .secrets.env
 
 deno run -A scripts/import-ara.ts --dry-run   # analizar sin escribir
 deno run -A scripts/import-ara.ts             # importar los CSV maestros
+
+deno run -A scripts/comprobar-rls.ts          # arnés de RLS: matriz de permisos por cuenta (§4bis)
+
+supabase migration up --local                 # aplicar migraciones pendientes SOLO en local (no borra datos)
 ```
 
-`npm run build` corre `tsc` con `strict`, `noUnusedLocals` y `noUnusedParameters`:
-**es la comprobación que debes ejecutar tras cada cambio**, porque no hay nada más.
+Emergencia de RLS (§4bis), por orden: primero el interruptor,
+
+```sql
+update app_settings set value = 'false' where key = 'roles_activos';
+```
+
+y si no basta, `scripts/sql/rls-emergencia.sql` en el SQL Editor.
+
+`npm run build` corre `tsc` con `strict`, `noUnusedLocals` y `noUnusedParameters`. **Ya no es la
+única comprobación automática**: `scripts/comprobar-rls.ts` verifica los permisos de verdad, contra
+la base y con sesiones reales. Ejecuta las dos tras cada cambio que toque datos o políticas. Si
+tocas algo de `supabase/functions/_shared/`, **redespliega todas** las funciones que lo importan.
 
 ## 12. Checkpoints de negocio y deuda técnica
 
@@ -884,12 +1014,16 @@ POMA en producción real quedan pasos de configuración y negocio.
 
 **Deuda técnica:**
 
-1. **Sin tests, sin linter, sin CI.** La única red de seguridad es `tsc`.
-2. **No hay roles**: cualquier usuario autenticado lo ve y lo puede todo, y desde el CRUD
-   también **crea, edita y borra** productores y entidades (§4). Con 452 fichas reales, dar de
-   alta una cuenta = dar acceso total de lectura y escritura. Al introducir roles habrá que
-   restringir las políticas de escritura de `20260722140000_crud_productores_entidades.sql` y
-   `20260724100000_rls_gestiona_canalizaciones_excedentes.sql` (canalizar/aprobar y editar excedentes).
+1. **Sin linter y sin CI.** Ya hay dos comprobaciones automáticas (`tsc` y `scripts/comprobar-rls.ts`),
+   pero ninguna se ejecuta sola ni hay tests de la interfaz.
+2. ~~**No hay roles**~~ — **resuelto a medias (2026-07-30)**: el modelo existe y las políticas están
+   desplegadas (§4bis), pero el interruptor `roles_activos` sigue apagado, así que **hoy el
+   comportamiento es todavía el de antes**: cualquier autenticado lo ve y lo puede todo. Queda
+   encenderlo (F4 del plan) y, con él, terminan de derogarse las políticas permisivas de
+   `20260722140000_crud_productores_entidades.sql` y
+   `20260724100000_rls_gestiona_canalizaciones_excedentes.sql`. Pendiente además: `tipo_receptor`
+   está en `null` en las entidades cuya `modalitat` no era concluyente, y sin él un receptor no ve
+   ninguna oferta.
 3. El intake avanza de paso aunque falle el envío: si la red falla, el productor no recibe la
    pregunta pero la sesión ya avanzó, y su siguiente mensaje se lee como respuesta al paso nuevo.
 4. `disponible_hasta`: el intake ahora lo **parsea** de la respuesta libre (`parseDisponibleFins`,
@@ -925,10 +1059,16 @@ POMA en producción real quedan pasos de configuración y negocio.
     destinatario debe cumplir **ambos**; se inicializaron alineados. El **Dashboard** aún gestiona
     y mide por las listas de Meta (no por `es_test`): coherente hoy porque coinciden, a revisar al
     pasar a producción de Meta o si se marca `es_test` a alguien fuera de la lista de Meta.
-18. **Aprobación sin roles**: el paso «Aprovar i canalitzar» de una aceptación (§6ter) lo puede hacer
-    **cualquier** usuario `authenticated`; cuando existan roles (§9/§12.2) habrá que restringirlo al
-    superadmin. El «acuerdo del productor» que exige el funcional queda implícito en la coordinación
-    asistida del equipo (mejora futura: señal explícita del productor).
+18. ~~**Aprobación sin roles**~~ — **resuelto (2026-07-30)**: la RPC `aprovar_resposta()` exige
+    `pot_aprovar()` y el trigger `respuestas_control_aprovacio` lo impone aunque se relajen las
+    políticas (§4bis). Efectivo al encender `roles_activos`. El «acuerdo del productor» que exige el
+    funcional sigue implícito en la coordinación asistida del equipo (mejora futura: señal explícita).
+19. **`OfferDetail` todavía aprueba a mano**, con tres llamadas sueltas (insert de canalización,
+    update de la respuesta, update del excedente) en vez de la RPC `aprovar_resposta()`, que hace lo
+    mismo en una transacción. Migrarlo cuando se toque el panel interno.
+20. **Rol único por usuario**: `usuario_roles` admite varias filas pero la interfaz asumirá el más
+    alto. El funcional (§1bis) pide multirol real por organización; las `membresias` ya lo permiten,
+    la UI aún no.
 
 ## 13. Al terminar cualquier cambio
 

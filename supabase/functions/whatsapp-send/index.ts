@@ -11,6 +11,7 @@ import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate } from "../_shared/whatsapp.ts";
 import { esTelefonoTest, modoTestActivo } from "../_shared/gate.ts";
+import { exigirEquipo } from "../_shared/autorizacion.ts";
 
 // CORS restringido a los orígenes del panel; ya no '*'.
 // ALLOWED_ORIGIN admite varios separados por comas y '*' como comodín dentro de
@@ -75,16 +76,14 @@ Deno.serve(async (req) => {
     Deno.env.get("SB_SECRET_KEY")!,
   );
 
-  // La plataforma ya ha validado la firma del JWT (verify_jwt). Aquí se
-  // comprueba que detrás hay un usuario de verdad: la publishable key no es un
-  // JWT, así que una petición sin sesión no llega ni a este punto.
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return responder(
-      { error: "Necesitas iniciar sesión para enviar mensajes", code: "unauthorized" },
-      401,
-    );
+  // La plataforma ya ha validado la firma del JWT (verify_jwt). Aquí se comprueba que
+  // detrás hay un usuario de verdad Y que es del equipo interno: enviar WhatsApp no es
+  // algo que pueda hacer un productor o un receptor desde su panel. RLS no cubre esto,
+  // porque la función corre con service_role (BYPASSRLS).
+  const auth = await exigirEquipo(supabase, req);
+  if ("rechazo" in auth) {
+    const { error, code, status } = auth.rechazo;
+    return responder({ error, code }, status);
   }
 
   try {
