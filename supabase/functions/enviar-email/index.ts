@@ -7,7 +7,7 @@
 
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { sendEmail } from "../_shared/resend.ts";
+import { bloquePreformateado, plantillaEmail, sendEmail } from "../_shared/resend.ts";
 import { esEmailTest, modoTestActivo } from "../_shared/gate.ts";
 import { exigirEquipo } from "../_shared/autorizacion.ts";
 
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
 
   try {
     const input = await req.json();
-    const { to, subject, html, text } = input;
+    const { to, subject, html, text, plantilla } = input;
     if (!to || typeof to !== "string") {
       return responder({ error: "Falta 'to' (email destino)" }, 400);
     }
@@ -74,6 +74,27 @@ Deno.serve(async (req) => {
     }
     if ((!html || typeof html !== "string") && (!text || typeof text !== "string")) {
       return responder({ error: "Falta 'html' o 'text'" }, 400);
+    }
+
+    // Si el cliente pide `plantilla`, el correo se MAQUETA AQUÍ (cabecera, logo,
+    // pie), y `html`/`text` son solo el contenido. Así la plantilla vive en un
+    // único sitio (_shared/resend.ts) en vez de duplicada en cada llamante.
+    // Sin `plantilla`, se manda el `html` tal cual: compatible hacia atrás.
+    let htmlFinal: string | undefined = typeof html === "string" ? html : undefined;
+    if (plantilla && typeof plantilla === "object") {
+      const { titulo, preheader, boton, nota } = plantilla as {
+        titulo?: string;
+        preheader?: string;
+        boton?: { texto: string; url: string };
+        nota?: string;
+      };
+      htmlFinal = plantillaEmail({
+        titulo: titulo || subject,
+        preheader,
+        boton,
+        nota,
+        cuerpoHtml: htmlFinal ?? bloquePreformateado(String(text)),
+      });
     }
 
     // Gate "modo test" (§8): si el modo test global está activo (por defecto), solo
@@ -114,7 +135,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const r = await sendEmail({ to, subject, html, text });
+    const r = await sendEmail({ to, subject, html: htmlFinal, text });
     if (!r.ok) return responder(r.data, r.status === 0 ? 502 : r.status);
     return responder({ ok: true, data: r.data }, 200);
   } catch (err) {

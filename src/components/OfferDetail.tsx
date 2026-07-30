@@ -31,11 +31,6 @@ function textoAHtmlPortapapeles(texto: string): string {
   return texto.split('\n').map((l) => `<div>${l === '' ? '<br>' : esc(l)}</div>`).join('')
 }
 
-function ofertaHtml(texto: string): string {
-  const esc = texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `<div style="font-family:'Space Grotesk',sans-serif;color:#234C66"><pre style="white-space:pre-wrap;font-family:inherit;font-size:15px;line-height:1.5;background:#fff;border:1px solid #E0EBC7;border-radius:12px;padding:16px">${esc}</pre></div>`
-}
-
 // Fila de oferta_respuestas con el nombre de la entidad (embed de PostgREST).
 type RespuestaConEntidad = OfertaRespuesta & {
   entidades: { nombre: string; poblacion: string | null } | null
@@ -336,9 +331,16 @@ export default function OfferDetail({ excedente, onBack }: Props) {
     if (!email) { toast.error(t('od.no_email_toast', { name: ent.nombre })); return }
     if (testMode && !esTest.has(ent.id)) { toast.error(t('od.not_test_toast', { name: ent.nombre })); return }
     if (!exc.texto_oferta) { toast.error(t('od.no_text')); return }
+    // El HTML lo maqueta el servidor (cabecera, logo, pie): aquí solo va el
+    // contenido. Ver `plantilla` en supabase/functions/enviar-email.
     const r = await enviarEmail({
       to: email, subject: `Oferta d'excedent: ${exc.producto ?? ''}`,
-      text: exc.texto_oferta, html: ofertaHtml(exc.texto_oferta),
+      text: exc.texto_oferta,
+      plantilla: {
+        titulo: t('od.email_title'),
+        preheader: t('od.email_preheader', { producto: exc.producto ?? '' }),
+        nota: t('od.email_note'),
+      },
     })
     if (r.ok) { await registrarEnvio(ent, 'email'); toast.success(t('od.sent_email', { name: ent.nombre })); return }
     const data = r.data as { code?: string } | null

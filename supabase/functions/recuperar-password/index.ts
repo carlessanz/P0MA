@@ -11,7 +11,7 @@
 
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { sendEmail } from "../_shared/resend.ts";
+import { plantillaEmail, sendEmail } from "../_shared/resend.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGIN") ?? "http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
@@ -70,13 +70,15 @@ Deno.serve(async (req) => {
         await sendEmail({
           to: email,
           subject: "Recuperació de contrasenya · POMA",
-          html: `<!doctype html><html><body style="margin:0;background:#F9FAFD;font-family:'Space Grotesk',-apple-system,Segoe UI,Roboto,sans-serif;color:#234C66">
-  <div style="max-width:600px;margin:0 auto;padding:24px">
-    <h1 style="font-size:22px;margin:0 0 8px">Recupera la teva contrasenya</h1>
-    <p style="font-size:15px;line-height:1.5">Has demanat restablir la contrasenya del panell de POMA. Fes clic al botó per triar-ne una de nova:</p>
-    <p style="margin:24px 0"><a href="${link}" style="background:#234C66;color:#E0EBC7;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:700;display:inline-block">Restablir contrasenya</a></p>
-    <p style="font-size:13px;color:#8A9FAC">Si no has estat tu, ignora aquest correu. L'enllaç caduca aviat.</p>
-  </div></body></html>`,
+          html: plantillaEmail({
+            titulo: "Recupera la teva contrasenya",
+            preheader: "Enllaç per triar una contrasenya nova del panell de POMA.",
+            cuerpoHtml:
+              `<p style="margin:0">Has demanat restablir la contrasenya del panell de POMA. Fes clic al botó per triar-ne una de nova:</p>`,
+            boton: { texto: "Restablir contrasenya", url: link },
+            nota:
+              "Si no has estat tu, pots ignorar aquest correu: la teva contrasenya no canviarà. L'enllaç caduca aviat i només es pot fer servir una vegada.",
+          }),
           text: `Restableix la teva contrasenya de POMA obrint aquest enllaç: ${link}`,
         });
       }

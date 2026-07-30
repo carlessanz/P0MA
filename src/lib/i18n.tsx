@@ -129,6 +129,10 @@ const ca: Dict = {
   'od.must_write': '{name} ha d’escriure «hola» al número primer.', 'od.window_closed': 'Finestra de 24h tancada amb {name}.',
   'od.no_send_wa': 'No s’ha pogut enviar per WhatsApp.', 'od.email_no_test': '{email} no és a la llista de correus de prova.',
   'od.no_send_email': 'No s’ha pogut enviar el correu.', 'od.no_optin': 'Sense opt-in', 'od.not_meta': 'No és a Meta',
+  // Textos del correu d'oferta (el maqueta el servidor; aquí només el contingut)
+  'od.email_title': 'Nova oferta d’excedent disponible',
+  'od.email_preheader': 'Hi ha {producto} disponible per recollir. Mira’n els detalls.',
+  'od.email_note': 'Si t’interessa, respon aquest correu o contacta amb l’equip de POMA indicant quants quilos vols i quan els pots recollir.',
   'od.no_email': 'Sense correu', 'od.email_not_test': 'El correu no és a la llista de prova',
   'od.not_test': 'No és usuari de prova', 'od.not_test_toast': '{name} no és usuari de prova (es_test).',
   'od.need_phone': '{name} no té telèfon.', 'od.no_optin_toast': '{name} no té opt-in; cal consentiment per enviar una plantilla.',
@@ -345,6 +349,10 @@ const es: Dict = {
   'od.must_write': '{name} debe escribir «hola» al número primero.', 'od.window_closed': 'Ventana de 24h cerrada con {name}.',
   'od.no_send_wa': 'No se pudo enviar por WhatsApp.', 'od.email_no_test': '{email} no está en la lista de correos de prueba.',
   'od.no_send_email': 'No se pudo enviar el email.', 'od.no_optin': 'Sin opt-in', 'od.not_meta': 'No está en Meta',
+  // Textos del correo de oferta (lo maqueta el servidor; aquí solo el contenido)
+  'od.email_title': 'Nueva oferta de excedente disponible',
+  'od.email_preheader': 'Hay {producto} disponible para recoger. Mira los detalles.',
+  'od.email_note': 'Si te interesa, responde a este correo o contacta con el equipo de POMA indicando cuántos kilos quieres y cuándo los puedes recoger.',
   'od.no_email': 'Sin email', 'od.email_not_test': 'El email no está en la lista de test',
   'od.not_test': 'No es usuario de prueba', 'od.not_test_toast': '{name} no es usuario de prueba (es_test).',
   'od.need_phone': '{name} no tiene teléfono.', 'od.no_optin_toast': '{name} no tiene opt-in; hace falta consentimiento para enviar una plantilla.',

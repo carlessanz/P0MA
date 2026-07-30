@@ -7,6 +7,17 @@ export interface EmailPayload {
   subject: string
   html?: string
   text?: string
+  /**
+   * Si viene, el servidor maqueta el correo con la plantilla de POMA (cabecera con
+   * logo, tarjeta, pie) y `html`/`text` pasan a ser solo el contenido. Mantener la
+   * plantilla en el servidor evita tenerla duplicada y desincronizada en el cliente.
+   */
+  plantilla?: {
+    titulo: string
+    preheader?: string
+    boton?: { texto: string; url: string }
+    nota?: string
+  }
 }
 
 export interface EmailResult {

@@ -20,7 +20,7 @@
 
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { sendEmail, textoAHtml } from "../_shared/resend.ts";
+import { escaparHtml, plantillaEmail, sendEmail } from "../_shared/resend.ts";
 import { sendText } from "../_shared/whatsapp.ts";
 import { exigirEquipo } from "../_shared/autorizacion.ts";
 
@@ -103,15 +103,23 @@ Deno.serve(async (req) => {
 
     // --- Correo: enlace + código como alternativa -----------------------------
     if (canal === "email" || canal === "ambos") {
-      const cuerpo =
-        `<p>Hola${perfil.nombre ? ` ${perfil.nombre}` : ""},</p>` +
-        `<p>Aquí tens l'accés a POMA. L'enllaç caduca en <strong>1 hora</strong> i només es pot fer servir una vegada.</p>` +
-        `<p style="margin:24px 0"><a href="${enlace}" style="background:#234C66;color:#E0EBC7;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">Entra a POMA</a></p>` +
-        `<p style="font-size:13px;color:#5F7787">Si el botó no funciona, entra a ${redirectTo} i fes servir aquest codi: <strong style="font-size:16px;letter-spacing:2px">${codi}</strong></p>`;
+      const salutacio = perfil.nombre ? `Hola ${escaparHtml(perfil.nombre)},` : "Hola,";
+      const html = plantillaEmail({
+        titulo: "El teu accés a POMA",
+        preheader: "Enllaç d'accés directe (caduca en 1 hora) i codi alternatiu.",
+        cuerpoHtml: `<p style="margin:0 0 12px">${salutacio}</p>` +
+          `<p style="margin:0">Ja pots entrar al panell de POMA. L'enllaç caduca en <strong>1 hora</strong> i només es pot fer servir una vegada.</p>`,
+        boton: { texto: "Entra a POMA", url: enlace },
+        nota:
+          `Si el botó no funciona, entra a <a href="${redirectTo}" style="color:#234C66">${
+            redirectTo.replace(/^https?:\/\//, "")
+          }</a>, escriu el teu correu i fes servir aquest codi:<br>` +
+          `<span style="display:inline-block;margin-top:10px;padding:8px 14px;background:#F1F4F0;border-radius:8px;font-size:20px;font-weight:700;letter-spacing:4px;color:#234C66">${codi}</span>`,
+      });
       const r = await sendEmail({
         to: email,
         subject: "El teu accés a POMA",
-        html: textoAHtml("Accés a POMA", cuerpo),
+        html,
         text: `Accés a POMA: ${enlace}\n\nCodi alternatiu: ${codi} (caduca en 1 hora).`,
       });
       resultado.email = r.ok ? "enviat" : `error: ${JSON.stringify(r.data)}`;

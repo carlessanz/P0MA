@@ -42,12 +42,15 @@ que lo construido) vive en `docs/Documento funcional POMA 2026.md` y su **versi�
 estado real** en `docs/Documento funcional POMA 2026 — adaptado.md` (ambos fuera de git); su
 resumen y la correspondencia objetivo↔construido están en **§1bis**.
 
-`docs/` guarda además cuatro documentos operativos (también fuera de git): **`Guía producción
+`docs/` guarda además cinco documentos operativos (también fuera de git): **`Guía producción
 WhatsApp — POMA.md`** (los pasos en Meta del checkpoint §12.2 —número de producción, verificación,
 pago, plantillas— con el estado de preparación verificado el 24-07-2026, y su versión visual
 `WhatsApp producción (visual).html`), **`Costes de WhatsApp — POMA.md`** (modelo de costes: la
-ventana de 24 h es gratis, la plantilla se paga) y **`Flujo de la aplicación POMA.md`** (el flujo
-end-to-end con diagramas Mermaid y los textos literales que se envían).
+ventana de 24 h es gratis, la plantilla se paga), **`Flujo de la aplicación POMA.md`** (el flujo
+end-to-end con diagramas Mermaid y los textos literales que se envían) y **`Usuarios y accesos —
+POMA.md`** (las 3 cuentas reales del equipo con su rol y las **12 de prueba con su contraseña**, más
+cómo reenviar un acceso, cortar uno y recrear las cuentas). Este último **lleva credenciales en
+claro**: que esté fuera de git no es un detalle, es el motivo de que exista ahí.
 
 ## 1bis. Visión funcional POMA 2026 (modelo objetivo ↔ lo construido)
 
@@ -276,7 +279,7 @@ supabase/
     enviar-email/index.ts      POST: ofertas por email (JWT + gate email_test_recipients)
     recuperar-password/index.ts POST público: genera enlace de reset y lo manda por Resend
     enviar-acceso/index.ts     POST: enlace mágico por correo y código de 6 cifras por WhatsApp (§9)
-    _shared/resend.ts          sendEmail() vía Resend, compartido
+    _shared/resend.ts          sendEmail() + plantillaEmail(): el maquetado de TODOS los correos (§9bis)
     _shared/plantillas-meta.md Contenido de las plantillas de Meta (oferta_excedent…) listo
 docs/                          Material de trabajo local — IGNORADO POR GIT (§7)
   nuevas-funcionalidades/      Specs POMA, manuales y CSV de origen
@@ -828,9 +831,9 @@ hasta que el panel la normalice.
 - **Secretos**: nunca en el código. Env vars, siempre.
 - **`docs/` y `scripts/data/` nunca entran en git.** El primero es material de trabajo —incluye el
   **funcional de negocio** (`Documento funcional POMA 2026.md` y `Documento funcional POMA 2026 —
-  adaptado.md`, resumidos en §1bis), `nuevas-funcionalidades/` y los cuatro documentos operativos
-  de §1 (guía de producción de WhatsApp + su HTML visual, costes y flujo de la aplicación)—; el
-  segundo son datos personales
+  adaptado.md`, resumidos en §1bis), `nuevas-funcionalidades/` y los cinco documentos operativos
+  de §1 (guía de producción de WhatsApp + su HTML visual, costes, flujo de la aplicación y
+  **usuarios y accesos, con contraseñas en claro**)—; el segundo son datos personales
   (teléfonos, emails y NIF de ~450 personas y entidades). `.env.local.example` sí se versiona: es la
   plantilla, sin valores.
 - **Claves de Supabase**: usar las **nuevas** — `sb_publishable_...` en el frontend,
@@ -941,6 +944,30 @@ apagado y en test). Detalle:
   configurado, así que **se envía a cualquier dirección** (verificado el envío a un correo externo).
   Si se cambia de dominio, verificarlo en `resend.com/domains` y ajustar `RESEND_FROM`. El gate
   `email_test_recipients` limita, mientras se está en pruebas, a los correos de esa whitelist.
+
+### Maquetado de los correos — una sola plantilla, en el servidor
+
+**`plantillaEmail()` en `_shared/resend.ts` es el único sitio donde se maqueta un correo**
+(2026-07-30). Devuelve el documento completo: cabecera navy con el logo, tarjeta blanca con título,
+cuerpo, botón y nota, filete coral, pie crema y la línea de por qué recibes esto. Está hecho con
+**tablas y estilos en línea** —lo único que renderizan igual Gmail, Outlook y Apple Mail—, admite
+`preheader` (la línea que la bandeja enseña junto al asunto) y pinta el botón con la técnica de
+tabla + `bgcolor`, porque Outlook ignora el `padding` de un `<a>`.
+
+**El logo es `public/logo-email.png`**, el wordmark rasterizado a 378×96 desde `logo-poma.svg`: los
+clientes de correo no pintan SVG, no resuelven rutas relativas y Gmail bloquea `data:`. Se sirve por
+URL absoluta desde `APP_URL`. El `alt` del `<img>` va **estilado** (crema, 26px, bold), así que con
+las imágenes bloqueadas —lo normal en Gmail con un remitente nuevo— se sigue leyendo «POMA» sobre el
+navy en vez de un icono roto. Si se cambia de dominio, basta con `APP_URL`.
+
+⚠️ **`textoAHtml(titulo, cuerpo)` ESCAPA su contenido**: es para texto plano (el `texto_oferta`, el
+albarán). Pasarle HTML lo publica como markup literal — pasó con `enviar-acceso` el 30-07-2026 y el
+correo llegó enseñando `<p>Hola…</p>`. Para HTML, `plantillaEmail()` directamente.
+
+**El cliente no maqueta.** `enviar-email` acepta un campo opcional **`plantilla`**
+(`{ titulo, preheader?, boton?, nota? }`); cuando viene, el `html`/`text` recibido es solo el
+*contenido* y el servidor lo envuelve. Sin `plantilla` manda el `html` tal cual (compatible hacia
+atrás). Por eso `OfferDetail` ya no construye HTML de correo: pasa `plantilla` y el texto.
 
 ### Enlaces de acceso (`enviar-acceso`)
 
