@@ -42,6 +42,13 @@ que lo construido) vive en `docs/Documento funcional POMA 2026.md` y su **versi�
 estado real** en `docs/Documento funcional POMA 2026 — adaptado.md` (ambos fuera de git); su
 resumen y la correspondencia objetivo↔construido están en **§1bis**.
 
+`docs/` guarda además cuatro documentos operativos (también fuera de git): **`Guía producción
+WhatsApp — POMA.md`** (los pasos en Meta del checkpoint §12.2 —número de producción, verificación,
+pago, plantillas— con el estado de preparación verificado el 24-07-2026, y su versión visual
+`WhatsApp producción (visual).html`), **`Costes de WhatsApp — POMA.md`** (modelo de costes: la
+ventana de 24 h es gratis, la plantilla se paga) y **`Flujo de la aplicación POMA.md`** (el flujo
+end-to-end con diagramas Mermaid y los textos literales que se envían).
+
 ## 1bis. Visión funcional POMA 2026 (modelo objetivo ↔ lo construido)
 
 Resumen del **funcional de negocio** (el *to-be*, `docs/Documento funcional POMA 2026.md`) y su
@@ -170,13 +177,14 @@ index.html
 .env.local.example             Plantilla de variables del frontend (sí se versiona)
 src/
   main.tsx                     Punto de entrada React
-  App.tsx                      Estado raíz: vista (4 secciones), contactos, contacto seleccionado
+  App.tsx                      Estado raíz: vista (6 secciones), contactos, contacto seleccionado
   types.ts                     Tipos de todas las tablas
   index.css                    Todos los estilos (global, ~825 líneas)
   lib/
     supabase.ts                Cliente Supabase (lanza si faltan las env vars)
     whatsapp.ts                sendWhatsApp(): llama a la Edge Function; nunca lanza
     plantillas.ts              plantillaPrimerContacte(): tría plantilla de 1r contacte per rol (§6ter)
+    ofertaTemplate.ts          construirComponentsOferta(): variables de la plantilla oferta_excedent (§6ter)
     poma.ts                    priorizarEntidades(): llama a la Edge Function con el JWT
     mensajes.ts                countUnanswered(): mensajes «sin contestar» por teléfono (§5)
     metaTest.ts                Lista de números de prueba de Meta (whitelist de envío, §9)
@@ -201,6 +209,7 @@ src/
 scripts/
   import-ara.ts                Importación idempotente de los 5 CSV maestros
   crear-usuario.ts             Alta de cuentas por la Admin API (no envía correos)
+  set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
 supabase/
   config.toml                  Config del CLI (puertos 553xx, ver §7)
@@ -578,8 +587,10 @@ libre (`textoSalutacio`, `src/lib/plantillas.ts`) —así en pruebas se ve el me
 depender de la aprobación de Meta—; si está **cerrada**, envía una **plantilla** por rol
 (`plantillaPrimerContacte`): en test siempre `hello_world` (la única aprobada, contenido fijo en
 inglés), en producción `salutacio_entitat`/`salutacio_productor` cuando `PLANTILLES_CA_APROVADES=true`.
-En la consola una plantilla se registra con su **texto legible** (`TEXTO_PLANTILLA` en
-`_shared/whatsapp.ts`), no con su nombre. Contenido de las plantillas en `_shared/plantillas-meta.md` (§12).
+En la consola una plantilla se registra con su **texto legible** si está en el mapa
+`TEXTO_PLANTILLA` (`_shared/whatsapp.ts`); hoy ese mapa **solo cubre `hello_world`**, así que
+`salutacio_*` y `oferta_excedent` caerían al fallback `[plantilla: nombre]` — al aprobarlas hay que
+darlas de alta ahí (§12.2). Contenido de las plantillas en `_shared/plantillas-meta.md` (§12).
 
 **Cancelar / anular una oferta ya creada.** `OfferDetail` ofrece dos acciones de anulación:
 «Marcar como no colocada» (no se encontró destino, exige motivo) y «Cancelar oferta»
@@ -632,7 +643,9 @@ hasta que el panel la normalice.
 - **Secretos**: nunca en el código. Env vars, siempre.
 - **`docs/` y `scripts/data/` nunca entran en git.** El primero es material de trabajo —incluye el
   **funcional de negocio** (`Documento funcional POMA 2026.md` y `Documento funcional POMA 2026 —
-  adaptado.md`, resumidos en §1bis) y `nuevas-funcionalidades/`—; el segundo son datos personales
+  adaptado.md`, resumidos en §1bis), `nuevas-funcionalidades/` y los cuatro documentos operativos
+  de §1 (guía de producción de WhatsApp + su HTML visual, costes y flujo de la aplicación)—; el
+  segundo son datos personales
   (teléfonos, emails y NIF de ~450 personas y entidades). `.env.local.example` sí se versiona: es la
   plantilla, sin valores.
 - **Claves de Supabase**: usar las **nuevas** — `sb_publishable_...` en el frontend,
@@ -856,8 +869,11 @@ POMA en producción real quedan pasos de configuración y negocio.
    `meta_test_recipients`). El código ya está cableado: la salutació por rol tras
    `PLANTILLES_CA_APROVADES`, y el **envío de la oferta como plantilla** (`enviarOfertaPlantilla` en
    `OfferDetail`) tras **`PLANTILLA_OFERTA_APROVADA`** (ambos en `src/lib/plantillas.ts`, hoy `false`).
-   Al aprobarlas: poner los dos flags a `true`, vaciar `meta_test_recipients` y (opcional) apagar el
-   modo test. Un solo commit.
+   Al aprobarlas: poner los dos flags a `true`, **añadir su texto legible a `TEXTO_PLANTILLA`**
+   (`_shared/whatsapp.ts`, si no la consola las registra como `[plantilla: nombre]`; §6ter),
+   actualizar el secreto `WHATSAPP_PHONE_ID` con el número de producción, vaciar
+   `meta_test_recipients` y (opcional) apagar el modo test. Un solo commit. Los pasos en Meta,
+   con rutas de clic y textos listos para pegar, están en `docs/Guía producción WhatsApp — POMA.md`.
 3. **Opt-in real de las entidades**: hoy `false` en las 111; el toggle deja la mecánica, pero
    recoger el consentimiento es trabajo de negocio.
 4. **Formato definitivo del albarán**: se genera con placeholders (`src/lib/textos.ts`); el
