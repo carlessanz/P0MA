@@ -176,6 +176,17 @@ ninguna pantalla necesita padding inferior y el composer del chat nunca queda de
 `min-h-0 flex-1` y scrollea él, salvo en las rutas marcadas `fullBleed` (Mensajería), que gestionan
 su propio alto. **Ninguna pantalla vuelve a escribir `h-dvh`.**
 
+**PWA instalable** (`vite-plugin-pwa`, `generateSW`): manifest, iconos 192/512 + *maskable*
+(generados desde `public/logo-poma.svg`), `apple-touch-icon` y los metas de iOS —que no lee el
+manifest—, `viewport-fit=cover` para que `env(safe-area-inset-*)` valga algo en iPhone.
+`registerType: 'autoUpdate'` + `cleanupOutdatedCaches` + `Cache-Control: must-revalidate` en
+`/index.html` y `/sw.js` (`vercel.json`): un service worker mal desplegado se queda pegado en los
+dispositivos, y esto hace que una recarga baste para coger la versión nueva. ⚠️ **Nada de Supabase
+se cachea** (`NetworkOnly` para `*.supabase.co`, y `/functions/`, `/rest/` y `/auth/` fuera del
+`navigateFallback`): la app es 100 % autenticada y con datos personales, y cachear una respuesta de
+PostgREST en un móvil compartido podría servírsela a la siguiente persona. Para retirar el service
+worker de los dispositivos, desplegar una vez con `selfDestroying: true`.
+
 **Responsive** (breakpoint `md`, 768px). Los **listados** van
 en tabla con `overflow-x-auto` (scroll horizontal en móvil); los **detalles/CRUD** usan grids
 `sm:grid-cols-2`. La **mensajería** usa patrón **lista↔conversación**: en móvil la lista ocupa toda
