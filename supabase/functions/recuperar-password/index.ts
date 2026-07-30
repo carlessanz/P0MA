@@ -12,6 +12,7 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { plantillaEmail, sendEmail } from "../_shared/resend.ts";
+import { esCuentaPermitida, modoTestActivo } from "../_shared/gate.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGIN") ?? "http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
@@ -56,6 +57,16 @@ Deno.serve(async (req) => {
         Deno.env.get("SUPABASE_URL")!,
         Deno.env.get("SB_SECRET_KEY")!,
       );
+      // Gate de cuenta (§8): con el modo test activo solo se manda a una cuenta del
+      // equipo interno o vinculada a una organización es_test. Esta función es
+      // PÚBLICA (--no-verify-jwt), así que sin esto cualquiera podría provocar un
+      // correo nuestro a cualquier dirección con cuenta. La respuesta sigue siendo
+      // el 200 genérico de siempre: no se revela si el correo existe ni si pasó.
+      if ((await modoTestActivo(supabase)) && !(await esCuentaPermitida(supabase, email))) {
+        console.log("[recuperar-password] bloqueado por modo test:", email);
+        return json({ ok: true }, 200, cors);
+      }
+
       const redirectTo = Deno.env.get("APP_URL") ?? ALLOWED_ORIGINS[0];
       const { data, error } = await supabase.auth.admin.generateLink({
         type: "recovery",

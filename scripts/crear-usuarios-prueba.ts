@@ -38,6 +38,11 @@ const admin = createClient(url, key, {
 // El fixture, declarativo: se lee de un vistazo y es su propia documentación
 // ---------------------------------------------------------------------------
 
+// Arriba del todo porque ORGS ya lo usa (const no tiene hoisting).
+const BASE = "hola";
+const DOMINIO = "carlessanz.com";
+const correo = (sufijo: string) => `${BASE}+${sufijo}@${DOMINIO}`;
+
 interface Org {
   codigo: string;
   tipo: "productor" | "entidad";
@@ -47,15 +52,22 @@ interface Org {
   /** Solo entidades: decide qué ofertas ve en su mercado. */
   tipoReceptor?: "social" | "animal" | "transformador" | "comercial";
   modalitat?: string;
+  /**
+   * Correo de la organización: es el de su titular. Sin él la ficha se queda SIN
+   * NINGÚN CANAL —no tienen teléfono, porque `productores.phone` es UNIQUE y los
+   * números del equipo ya están dados de alta—, y con el correo como canal por
+   * defecto (§8bis) esa es justamente la vía que hay que poder probar.
+   */
+  email: string;
 }
 
 const ORGS: Org[] = [
-  { codigo: "TEST-PROD-1", tipo: "productor", nombre: "Mas de Prova SCP", poblacion: "Gavà", area: "Baix Llobregat" },
-  { codigo: "TEST-PROD-2", tipo: "productor", nombre: "Horta de Prova SL", poblacion: "Viladecans", area: "Baix Llobregat" },
-  { codigo: "TEST-ENT-SOCIAL", tipo: "entidad", nombre: "Menjador Social de Prova", poblacion: "Barcelona", area: "Barcelonès", tipoReceptor: "social", modalitat: "Donació" },
-  { codigo: "TEST-ENT-ANIMAL", tipo: "entidad", nombre: "Granja de Prova", poblacion: "Vic", area: "Osona", tipoReceptor: "animal", modalitat: "Altres" },
-  { codigo: "TEST-ENT-OBRADOR", tipo: "entidad", nombre: "Obrador de Prova", poblacion: "Sabadell", area: "Vallès Occidental", tipoReceptor: "transformador", modalitat: "Maquila" },
-  { codigo: "TEST-ENT-COMERCIAL", tipo: "entidad", nombre: "Comercial de Prova SL", poblacion: "Mercabarna", area: "Barcelonès", tipoReceptor: "comercial", modalitat: "Venda" },
+  { codigo: "TEST-PROD-1", tipo: "productor", nombre: "Mas de Prova SCP", poblacion: "Gavà", area: "Baix Llobregat", email: correo("prodowner-masprova") },
+  { codigo: "TEST-PROD-2", tipo: "productor", nombre: "Horta de Prova SL", poblacion: "Viladecans", area: "Baix Llobregat", email: correo("prodowner-hortaprova") },
+  { codigo: "TEST-ENT-SOCIAL", tipo: "entidad", nombre: "Menjador Social de Prova", poblacion: "Barcelona", area: "Barcelonès", tipoReceptor: "social", modalitat: "Donació", email: correo("recowner-social") },
+  { codigo: "TEST-ENT-ANIMAL", tipo: "entidad", nombre: "Granja de Prova", poblacion: "Vic", area: "Osona", tipoReceptor: "animal", modalitat: "Altres", email: correo("recowner-animal") },
+  { codigo: "TEST-ENT-OBRADOR", tipo: "entidad", nombre: "Obrador de Prova", poblacion: "Sabadell", area: "Vallès Occidental", tipoReceptor: "transformador", modalitat: "Maquila", email: correo("recowner-obrador") },
+  { codigo: "TEST-ENT-COMERCIAL", tipo: "entidad", nombre: "Comercial de Prova SL", poblacion: "Mercabarna", area: "Barcelonès", tipoReceptor: "comercial", modalitat: "Venda", email: correo("recowner-comercial") },
 ];
 
 interface Cuenta {
@@ -66,10 +78,6 @@ interface Cuenta {
   org?: { codigo: string; rolOrg: "titular" | "operador" };
   para: string;
 }
-
-const BASE = "hola";
-const DOMINIO = "carlessanz.com";
-const correo = (sufijo: string) => `${BASE}+${sufijo}@${DOMINIO}`;
 
 const CUENTAS: Cuenta[] = [
   { email: correo("superadmin"), nombre: "Super Admin POMA", rol: "super_admin", para: "Aprueba, canaliza y toca la configuración" },
@@ -108,6 +116,7 @@ async function asseguraOrg(org: Org): Promise<string | null> {
     codigo: org.codigo,
     poblacion: org.poblacion,
     area_geografica: org.area,
+    email: org.email,
     es_test: true,
   };
   if (org.tipo === "entidad") {
@@ -153,7 +162,20 @@ console.log(`\n${dryRun ? "SIMULACIÓN — no se escribe nada\n" : ""}1. Organiz
 const idsOrg = new Map<string, string>();
 for (const org of ORGS) {
   const id = await asseguraOrg(org);
-  if (id) { idsOrg.set(org.codigo, id); console.log(`  ✓ ${org.codigo} · ${org.nombre}`); }
+  if (id) { idsOrg.set(org.codigo, id); console.log(`  ✓ ${org.codigo} · ${org.nombre} · ${org.email}`); }
+}
+
+// `enviar-email` exige DOS cosas: es_test en la ficha (arriba) y estar en esta
+// whitelist mientras tenga filas (§8). Sin esto, las organizaciones de prueba
+// pasarían el primer gate y las pararía el segundo, que es de los fallos más
+// confusos de diagnosticar: la ficha "parece" correcta.
+if (!dryRun) {
+  const { error } = await admin.from("email_test_recipients").upsert(
+    ORGS.map((o) => ({ email: o.email, etiqueta: o.codigo })),
+    { onConflict: "email", ignoreDuplicates: true },
+  );
+  if (error) console.error(`  ✗ email_test_recipients: ${error.message}`);
+  else console.log(`  ✓ ${ORGS.length} correos en la whitelist de test`);
 }
 
 console.log("\n2. Cuentas");

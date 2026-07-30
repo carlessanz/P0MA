@@ -9,7 +9,6 @@ import { priorizarEntidades } from '../lib/poma'
 import type { EntidadPuntuada } from '../lib/poma'
 import { useT } from '../lib/i18n'
 import { textoRecollidaConfirmada, textoAlbaran } from '../lib/textos'
-import { getTestMode } from '../lib/settings'
 import { PLANTILLA_OFERTA, PLANTILLA_OFERTA_APROVADA } from '../lib/plantillas'
 import { construirComponentsOferta } from '../lib/ofertaTemplate'
 import type { Canalizacion, Excedente, OfertaRespuesta } from '../types'
@@ -43,6 +42,15 @@ function fechaCorta(iso: string): string {
   return `${dia} ${hora}`
 }
 
+// Color del canal recomendado: verde WhatsApp, navy correo, gris si no hay ninguno.
+function canalClases(canal: string): string {
+  switch (canal) {
+    case 'whatsapp': return 'text-green-700'
+    case 'email': return 'text-primary'
+    default: return 'text-muted-foreground'
+  }
+}
+
 function estadoRespuestaClases(estado: string): string {
   switch (estado) {
     case 'acceptada': return 'bg-green-100 text-green-800'
@@ -67,8 +75,6 @@ export default function OfferDetail({ excedente, onBack }: Props) {
   const [ranking, setRanking] = useState<EntidadPuntuada[]>([])
   const [rankingError, setRankingError] = useState<string | null>(null)
   const [cargandoRanking, setCargandoRanking] = useState(true)
-  const [esTest, setEsTest] = useState<Set<string>>(new Set())
-  const [emailPorEntidad, setEmailPorEntidad] = useState<Record<string, string | null>>({})
   const [copiado, setCopiado] = useState<string | null>(null)
   // Input de fecha controlado: se re-sincroniza cuando `exc` cambia tras recargar
   // (p. ej. si el intake dejó una fecha parseada o el usuario la edita).
@@ -144,33 +150,20 @@ export default function OfferDetail({ excedente, onBack }: Props) {
     return () => { void supabase.removeChannel(channel) }
   }, [excedente.id, recargarRespuestas])
 
+  // El ranking trae ya el correo, el `es_test`, el canal recomendado y el modo test:
+  // lo decide todo `priorizar-entidades` con la misma política que aplicará al
+  // enviar (§8bis). El panel no lo recalcula, para que no puedan discrepar.
   useEffect(() => {
     setCargandoRanking(true)
     void priorizarEntidades(excedente.id).then((r) => {
       setRanking(r.ranking)
+      setTestMode(r.modoTest)
       setRankingError(r.error)
       setCargandoRanking(false)
     })
   }, [excedente.id])
 
-  useEffect(() => {
-    // es_test es la fuente de verdad de "puede recibir" (WhatsApp y correo).
-    void supabase.from('entidades').select('id, email, es_test').then(({ data }) => {
-      const map: Record<string, string | null> = {}
-      const tests = new Set<string>()
-      for (const e of data ?? []) {
-        map[e.id] = e.email
-        if (e.es_test) tests.add(e.id)
-      }
-      setEmailPorEntidad(map)
-      setEsTest(tests)
-    })
-  }, [])
-
   useEffect(() => { setFecha(exc.disponible_hasta ?? '') }, [exc.disponible_hasta])
-
-  // El gate es_test solo aplica con el modo test activo (igual que el servidor).
-  useEffect(() => { void getTestMode().then(setTestMode) }, [])
 
   useEffect(() => {
     // Productor + municipi para rellenar la plantilla oferta_excedent (fuera de ventana).
@@ -189,14 +182,13 @@ export default function OfferDetail({ excedente, onBack }: Props) {
     })()
   }, [excedente.productor_id, excedente.ubicacion_id])
 
-  // Matching ordenado para mostrar primero a quién SÍ se puede contactar
-  // (es_test + opt-in + teléfono, o es_test + email). El sort es estable: dentro
-  // de cada grupo se conserva la puntuación que ya calculó el servidor.
+  // Matching ordenado para mostrar primero a quién SÍ se puede contactar: tiene
+  // permiso (es_test con el modo test activo) y tiene algún canal. El sort es
+  // estable: dentro de cada grupo se conserva la puntuación del servidor.
   const rankingOrdenado = useMemo(() => {
-    const contactable = (e: EntidadPuntuada) =>
-      (!testMode || esTest.has(e.id)) && ((e.opt_in && !!e.telefono) || !!emailPorEntidad[e.id])
+    const contactable = (e: EntidadPuntuada) => (!testMode || e.es_test) && e.canal !== 'cap'
     return [...ranking].sort((a, b) => Number(contactable(b)) - Number(contactable(a)))
-  }, [ranking, esTest, emailPorEntidad, testMode])
+  }, [ranking, testMode])
 
   async function guardarFecha(valor: string) {
     setFecha(valor)
@@ -277,27 +269,55 @@ export default function OfferDetail({ excedente, onBack }: Props) {
     await recargarRespuestas()
   }
 
-  async function enviarOfertaWhatsApp(ent: EntidadPuntuada) {
+  /**
+   * Envía la oferta por WhatsApp. Devuelve si salió, para que el envío automático
+   * (`enviarOferta`) pueda caer al correo cuando no.
+   *
+   * `silencioso` calla los avisos de fallo: los da el llamante, que sabe si aún
+   * queda un canal por intentar. Un toast rojo seguido de uno verde confunde.
+   */
+  async function enviarOfertaWhatsApp(ent: EntidadPuntuada, silencioso = false): Promise<boolean> {
+    const avisar = (fn: typeof toast.error, msg: string) => { if (!silencioso) fn(msg) }
     // Botón siempre clicable: cada motivo se avisa con un toast, no con un return mudo.
-    if (!ent.telefono) { toast.error(t('od.need_phone', { name: ent.nombre })); return }
-    if (testMode && !esTest.has(ent.id)) { toast.error(t('od.not_test_toast', { name: ent.nombre })); return }
-    if (!exc.texto_oferta) { toast.error(t('od.no_text')); return }
+    if (!ent.telefono) { avisar(toast.error, t('od.need_phone', { name: ent.nombre })); return false }
+    if (testMode && !ent.es_test) { avisar(toast.error, t('od.not_test_toast', { name: ent.nombre })); return false }
+    if (!exc.texto_oferta) { toast.error(t('od.no_text')); return false }
     const r = await sendWhatsApp({ to: ent.telefono, type: 'text', body: exc.texto_oferta })
-    if (r.ok) { await registrarEnvio(ent, 'whatsapp'); toast.success(t('od.sent_wa', { name: ent.nombre })); return }
+    if (r.ok) { await registrarEnvio(ent, 'whatsapp'); toast.success(t('od.sent_wa', { name: ent.nombre })); return true }
     const data = r.data as { code?: string } | null
     if (data?.code === 'window_closed') {
       // Fuera de la ventana de 24 h solo cabe una plantilla aprobada por Meta.
-      if (!PLANTILLA_OFERTA_APROVADA) { toast.warning(t('od.tpl_not_approved', { name: ent.nombre })); return }
-      if (!ent.opt_in) { toast.error(t('od.no_optin_toast', { name: ent.nombre })); return }
-      toast.warning(t('od.closed_offer_tpl', { name: ent.nombre }), {
-        action: { label: t('od.send_as_tpl'), onClick: () => void enviarOfertaPlantilla(ent) },
-      })
-      return
+      if (!PLANTILLA_OFERTA_APROVADA) { avisar(toast.warning, t('od.tpl_not_approved', { name: ent.nombre })); return false }
+      if (!ent.opt_in) { avisar(toast.error, t('od.no_optin_toast', { name: ent.nombre })); return false }
+      if (!silencioso) {
+        toast.warning(t('od.closed_offer_tpl', { name: ent.nombre }), {
+          action: { label: t('od.send_as_tpl'), onClick: () => void enviarOfertaPlantilla(ent) },
+        })
+      }
+      return false
     }
-    if (data?.code === 'no_test_user') toast.error(t('od.not_test_toast', { name: ent.nombre }))
-    else if (data?.code === 'no_test_recipient') toast.error(t('od.no_test_meta', { name: ent.nombre }))
-    else if (data?.code === 'unknown_contact') toast.error(t('od.must_write', { name: ent.nombre }))
-    else toast.error(t('od.no_send_wa'))
+    if (data?.code === 'no_test_user') avisar(toast.error, t('od.not_test_toast', { name: ent.nombre }))
+    else if (data?.code === 'no_test_recipient') avisar(toast.error, t('od.no_test_meta', { name: ent.nombre }))
+    else if (data?.code === 'unknown_contact') avisar(toast.error, t('od.must_write', { name: ent.nombre }))
+    else avisar(toast.error, t('od.no_send_wa'))
+    return false
+  }
+
+  /**
+   * Envío por el canal recomendado (§8bis): WhatsApp solo si de verdad se puede
+   * —móvil con opt-in o ventana abierta—, y si no, correo. Lo decide el servidor en
+   * `priorizar-entidades`; aquí solo se obedece. Si WhatsApp falla y hay correo, se
+   * cae al correo: quedarse sin avisar a nadie es peor que cambiar de canal.
+   */
+  async function enviarOferta(ent: EntidadPuntuada) {
+    if (testMode && !ent.es_test) { toast.error(t('od.not_test_toast', { name: ent.nombre })); return }
+    if (ent.canal === 'cap') { toast.error(t('od.no_channel', { name: ent.nombre })); return }
+    if (ent.canal === 'whatsapp') {
+      if (await enviarOfertaWhatsApp(ent, ent.email_possible)) return
+      if (!ent.email_possible) return // el motivo ya se avisó
+      toast.info(t('od.fallback_email', { name: ent.nombre }))
+    }
+    await enviarOfertaEmail(ent)
   }
 
   // Envía la oferta como plantilla `oferta_excedent` (fuera de ventana). Asegura el
@@ -327,9 +347,9 @@ export default function OfferDetail({ excedente, onBack }: Props) {
   }
 
   async function enviarOfertaEmail(ent: EntidadPuntuada) {
-    const email = emailPorEntidad[ent.id]
+    const email = ent.email
     if (!email) { toast.error(t('od.no_email_toast', { name: ent.nombre })); return }
-    if (testMode && !esTest.has(ent.id)) { toast.error(t('od.not_test_toast', { name: ent.nombre })); return }
+    if (testMode && !ent.es_test) { toast.error(t('od.not_test_toast', { name: ent.nombre })); return }
     if (!exc.texto_oferta) { toast.error(t('od.no_text')); return }
     // El HTML lo maqueta el servidor (cabecera, logo, pie): aquí solo va el
     // contenido. Ver `plantilla` en supabase/functions/enviar-email.
@@ -452,7 +472,7 @@ export default function OfferDetail({ excedente, onBack }: Props) {
           {cargandoRanking && <p className="text-sm text-muted-foreground">{t('od.calculating')}</p>}
           {rankingError && <p className="text-sm text-destructive">{rankingError}</p>}
           {!cargandoRanking && !rankingError && rankingOrdenado.slice(0, 15).map((ent) => {
-            const puedeTest = !testMode || esTest.has(ent.id)
+            const puedeTest = !testMode || ent.es_test
             // Si no es usuari de prova, se muestra el motivo visible (antes solo en el title).
             const motivos = puedeTest ? ent.motivos : [...ent.motivos, t('od.not_test')]
             return (
@@ -463,6 +483,11 @@ export default function OfferDetail({ excedente, onBack }: Props) {
                   <div>
                     <div className="font-medium">{ent.nombre}{ent.poblacion ? ` · ${ent.poblacion}` : ''}</div>
                     <div className="text-xs text-muted-foreground">{motivos.join(' · ') || t('od.no_match_ent')}</div>
+                    {/* Canal recomendado y por qué: que se vea antes de pulsar, no después. */}
+                    <div className="text-xs">
+                      <span className={`font-medium ${canalClases(ent.canal)}`}>{t(`od.canal_${ent.canal}`)}</span>
+                      <span className="text-muted-foreground"> · {t(`od.canal_why_${ent.motiu_canal}`)}</span>
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -470,8 +495,11 @@ export default function OfferDetail({ excedente, onBack }: Props) {
                     <input type="checkbox" checked={ent.opt_in} onChange={() => void toggleOptIn(ent.id, ent.opt_in)} />
                     {t('od.optin')}
                   </label>
-                  <Button size="sm" onClick={() => void enviarOfertaWhatsApp(ent)}>{t('od.whatsapp')}</Button>
-                  <Button size="sm" variant="outline"
+                  {/* Envío por el canal recomendado. Los otros dos fuerzan uno concreto. */}
+                  <Button size="sm" onClick={() => void enviarOferta(ent)}>{t('od.send')}</Button>
+                  <Button size="sm" variant="outline" title={t('od.force_wa')}
+                    onClick={() => void enviarOfertaWhatsApp(ent)}>{t('od.whatsapp')}</Button>
+                  <Button size="sm" variant="outline" title={t('od.force_email')}
                     onClick={() => void enviarOfertaEmail(ent)}>{t('od.email')}</Button>
                 </div>
               </div>

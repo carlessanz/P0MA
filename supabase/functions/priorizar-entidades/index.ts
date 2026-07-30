@@ -9,6 +9,8 @@ import { createClient } from "@supabase/supabase-js";
 import { priorizar } from "../_shared/priorizacion.ts";
 import type { EntidadPriorizable, ExcedenteContexto } from "../_shared/priorizacion.ts";
 import { exigirEquipo } from "../_shared/autorizacion.ts";
+import { decidirCanal } from "../_shared/canal.ts";
+import { modoTestActivo } from "../_shared/gate.ts";
 
 const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGIN") ?? "http://localhost:5173")
   .split(",").map((o) => o.trim()).filter(Boolean);
@@ -95,7 +97,7 @@ Deno.serve(async (req) => {
     const { data: entidades, error: entError } = await supabase
       .from("entidades")
       .select(
-        "id, nombre, poblacion, telefono, opt_in, area_geografica, estat, prioritat, " +
+        "id, nombre, poblacion, telefono, email, es_test, opt_in, area_geografica, estat, prioritat, " +
           "productes_frescos, transport_plataforma, descarrega_toro",
       );
     if (entError) {
@@ -114,7 +116,46 @@ Deno.serve(async (req) => {
       contexto,
     );
 
-    return json({ excedente_id, contexto, ranking });
+    // Canal recomendado por entidad (`canal.ts`): el correo es el canal por defecto y
+    // WhatsApp solo cuando de verdad se puede. Se decide AQUÍ, no en el panel, para
+    // que la política viva en un solo sitio; el panel solo la pinta y la obedece.
+    // La ventana de 24 h y el opt-in salen de `wa_contacts`, que el ranking no mira.
+    const telefonos = (entidades ?? [])
+      .map((e: { telefono: string | null }) => e.telefono).filter(Boolean) as string[];
+    const { data: contactos } = telefonos.length
+      ? await supabase.from("wa_contacts").select("phone, opt_in, last_inbound_at").in("phone", telefonos)
+      : { data: [] };
+    const porTelefono = new Map<string, { opt_in: boolean | null; last_inbound_at: string | null }>();
+    for (const c of contactos ?? []) porTelefono.set(c.phone, c);
+
+    const porId = new Map<string, { telefono: string | null; email: string | null; es_test: boolean | null }>();
+    for (const e of entidades ?? []) porId.set(e.id, e);
+
+    // `es_test` decide si PUEDE recibir (§8); el canal, POR DÓNDE. Son cosas
+    // distintas y el panel necesita las dos para explicar por qué un botón está gris.
+    const modoTest = await modoTestActivo(supabase);
+
+    const rankingConCanal = ranking.map((e) => {
+      const ficha = porId.get(e.id);
+      const contacto = ficha?.telefono ? porTelefono.get(ficha.telefono) : undefined;
+      const d = decidirCanal({
+        telefono: ficha?.telefono,
+        email: ficha?.email,
+        opt_in: contacto?.opt_in,
+        last_inbound_at: contacto?.last_inbound_at,
+      });
+      return {
+        ...e,
+        email: ficha?.email ?? null,
+        es_test: ficha?.es_test === true,
+        canal: d.canal,
+        motiu_canal: d.motivo,
+        whatsapp_possible: d.whatsappPosible,
+        email_possible: d.emailPosible,
+      };
+    });
+
+    return json({ excedente_id, contexto, modo_test: modoTest, ranking: rankingConCanal });
   } catch (err) {
     console.error("priorizar-entidades:", err instanceof Error ? err.message : String(err));
     return json({ error: "Error interno o JSON inválido" }, 500);

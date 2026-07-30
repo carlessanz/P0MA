@@ -270,7 +270,8 @@ supabase/
     crear-oferta/index.ts      GET /campos (descriptor) + POST (alta desde el panel del productor)
     _shared/priorizacion.ts    Puntuación de entidades (pura, sin red)
     _shared/respuestas.ts      Captura el sí/no de una entidad a una oferta (aceptación, §5)
-    _shared/gate.ts            Gate de envío: esTelefonoTest/esEmailTest + modoTestActivo (modo test global, §8)
+    _shared/gate.ts            Gate de envío: quién PUEDE recibir (es_test, cuenta) + modoTestActivo (§8)
+    _shared/canal.ts           Política de canal: por dónde se contacta; el correo es el defecto (§8bis)
     _shared/autorizacion.ts    Autorización por rol: contextoUsuario/exigirEquipo (§4bis; service_role ignora RLS)
     priorizar-entidades/       POST: ranking de entidades para un excedente (JWT)
     whatsapp-send/index.ts     POST: reglas de envío; delega en _shared
@@ -879,15 +880,29 @@ Contacto inexistente → `404 unknown_contact`. Sin sesión válida → `401 una
 `'true'`, editable desde **Configuración**, §6ter), decide si se aplica el gate: con el **modo test
 ACTIVADO** solo se envía a los usuarios `es_test`; **apagado**, a todos (producción). `es_test` (bool en
 `productores` y `entidades`, `20260723110000_es_test.sql`) marca quién puede recibir; se edita por ficha
-(CRUD) y decide los listados y los botones del panel. El gate vive en `_shared/gate.ts` (`modoTestActivo` más
-`esTelefonoTest`/`esEmailTest`) y se aplica en **cuatro** sitios: el **webhook** (no responde a quien
-no sea `es_test`), **whatsapp-send** y **enviar-email** (`403 no_test_user`) e **intake-recordatorios**
-(salta a los no-test). Cubre **todo**: ofertas, intake, recordatorios, ALTA/BAJA, por WhatsApp y correo.
+(CRUD) y decide los listados y los botones del panel. El gate vive en `_shared/gate.ts` (`modoTestActivo`,
+`esTelefonoTest`, `esEmailTest`, `esCuentaPermitida`) y se aplica en **seis** sitios: el **webhook** (no
+responde a quien no sea `es_test`), **whatsapp-send** y **enviar-email** (`403 no_test_user`),
+**intake-recordatorios** (salta a los no-test) y —desde el 30-07-2026— **`enviar-acceso`** y
+**`recuperar-password`**. Cubre **todo**: ofertas, intake, recordatorios, ALTA/BAJA, accesos y resets, por
+WhatsApp y correo.
 **Fail-safe**: si `test_mode` falta o no se puede leer, se trata como ACTIVADO (no se envía a no-test).
 Sobrevive al paso a producción de Meta: al vaciar `meta_test_recipients`, el modo test sigue filtrando.
-Se arrancó con `test_mode='true'` y `es_test=true` a quienes ya estaban en las whitelists. Hoy cualquier
-`authenticated` puede togglear `test_mode` (no hay roles todavía; §9/§12.2): apagarlo es sensible y la UI
-pide confirmación.
+Se arrancó con `test_mode='true'` y `es_test=true` a quienes ya estaban en las whitelists. Solo el
+`super_admin` puede togglear `test_mode` (§4bis): apagarlo es sensible y la UI pide confirmación.
+
+⚠️ `esEmailTest` mira **productores y entidades** (antes solo entidades): con el correo como canal por
+defecto (§8bis), mirar solo una tabla dejaba sin poder recibir nada a un productor de prueba sin WhatsApp.
+
+**Gate de cuenta** (`esCuentaPermitida`) — los correos de **acceso** y de **recuperación de contraseña**
+no van a un productor ni a un receptor, sino a alguien con credenciales de la plataforma, así que `es_test`
+no les aplica directamente. Con el modo test activo pasa quien sea **equipo interno** (tiene fila en
+`usuario_roles`) **o** esté vinculado por `membresias` a una organización `es_test`. El equipo interno pasa
+siempre **a propósito**: dejarlos sin poder recuperar su contraseña los bloquearía fuera de la aplicación
+que administran, y para recibir algo hay que tener ya una cuenta con un rol concedido a mano.
+`recuperar-password` es **pública** (`--no-verify-jwt`), así que sin este gate cualquiera podría provocar
+un correo nuestro a cualquier dirección con cuenta; sigue respondiendo el 200 genérico de siempre, que no
+revela si el correo existe ni si pasó el gate.
 
 **Gate de la lista de test de Meta** (segunda barrera, requisito técnico del entorno de test): si
 `meta_test_recipients` tiene alguna fila y el destinatario **no** está en ella →
@@ -898,6 +913,36 @@ enviar; el interruptor, si sale **algo** (hoy, no).
 
 Consecuencia práctica: se puede responder a cualquiera que escriba espontáneamente aunque no
 tenga opt-in, pero no iniciar una conversación sin consentimiento.
+
+## 8bis. Canal preferente: el correo es el canal por defecto
+
+**Regla (2026-07-30):** WhatsApp solo se usa cuando de verdad se puede; en cualquier otro caso, **correo**.
+Nadie se queda sin recibir una oferta porque su ficha no tenga WhatsApp o no lo haya aceptado nunca — y
+eso son casi todos: de 345 productores, 61 no tienen móvil utilizable, y las 111 entidades importadas
+tienen `opt_in = false`.
+
+Vive en **`_shared/canal.ts`**, función **pura y sin red** (mismo criterio que `priorizacion.ts`):
+
+| Situación | Canal |
+| --- | --- |
+| Móvil **y** ventana de 24 h abierta | **WhatsApp** (texto libre, gratis, consentimiento implícito: nos acaba de escribir) |
+| Móvil **y** `opt_in = true` | **WhatsApp** (plantilla; fuera de ventana es lo único que entrega Meta) |
+| Sin teléfono · teléfono fijo · sin opt-in y ventana cerrada | **Correo** |
+| Ni móvil útil ni correo | **ninguno**, y el panel lo dice para que se complete la ficha |
+
+`esMovil()` descarta los fijos españoles (`34` + algo que no sea `6`/`7`): son 6 en el import de ARA y no
+reciben WhatsApp. Fuera de España no se puede saber por el prefijo, así que se acepta: más vale intentarlo
+y que lo rechace Meta que descartarlo por nuestra cuenta.
+
+**Quién PUEDE recibir (§8, `es_test`) y POR DÓNDE (esto) son cosas distintas y se aplican las dos.** Hoy,
+con el modo test activo, la política de canal solo llega a alcanzar a los usuarios `es_test`.
+
+**Lo decide el servidor, no el panel.** `priorizar-entidades` devuelve por entidad `canal`, `motiu_canal`,
+`whatsapp_possible`, `email_possible`, más `email`, `es_test` y el `modo_test` global; `OfferDetail` los
+pinta y los obedece, sin recalcular nada (antes tenía su propia heurística, que podía discrepar de lo que
+haría el servidor al enviar). El botón **«Enviar»** usa el canal recomendado y **cae al correo si WhatsApp
+falla**; los botones «WhatsApp» y «Correu» siguen ahí para forzar uno. `enviar-acceso` acepta
+`canal: 'auto'` (el valor por defecto) con la misma política y el mismo respaldo.
 
 **El intake conversacional ocurre siempre dentro de la ventana** (la abre el productor al
 escribir), así que no necesita plantilla ni opt-in.
@@ -1205,6 +1250,15 @@ POMA en producción real quedan pasos de configuración y negocio.
 20. **Rol único por usuario**: `usuario_roles` admite varias filas pero la interfaz asumirá el más
     alto. El funcional (§1bis) pide multirol real por organización; las `membresias` ya lo permiten,
     la UI aún no.
+21. **El canal preferente (§8bis) no llega a todos los envíos.** Lo aplican `OfferDetail` (botón
+    «Enviar») y `enviar-acceso`; el **intake**, los **recordatorios** y el **ALTA/BAJA** siguen siendo
+    WhatsApp puro, que es correcto —son respuestas dentro de una conversación que la persona ha
+    iniciado por WhatsApp—, pero un productor que solo tenga correo no puede publicar una oferta de
+    forma conversacional. La vía para él es el panel (§6ter). Falta también el fallback a correo en
+    `whatsapp-send` mismo: hoy lo orquesta el llamante.
+22. **Sin preferencia de canal declarada por la persona.** El canal se deduce de lo que hay en la
+    ficha (móvil, opt-in, ventana). El funcional pide un campo explícito de «canal preferido» por
+    organización: cuando exista, mandará sobre la deducción.
 
 ## 13. Al terminar cualquier cambio
 
