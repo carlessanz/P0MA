@@ -241,6 +241,7 @@ scripts/
   crear-usuario.ts             Alta de cuentas por la Admin API (no envía correos)
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
+  crear-usuarios-prueba.ts     6 organizaciones ficticias TEST-* y 12 cuentas, idempotente (§9)
   sql/rls-emergencia.sql       Paracaídas: restaura las políticas permisivas (NO es migración)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
 supabase/
@@ -262,6 +263,7 @@ supabase/
     intake-recordatorios/      POST: avisa intakes a medias (lo llama pg_cron vía pg_net)
     enviar-email/index.ts      POST: ofertas por email (JWT + gate email_test_recipients)
     recuperar-password/index.ts POST público: genera enlace de reset y lo manda por Resend
+    enviar-acceso/index.ts     POST: enlace mágico por correo y código de 6 cifras por WhatsApp (§9)
     _shared/resend.ts          sendEmail() vía Resend, compartido
     _shared/plantillas-meta.md Contenido de las plantillas de Meta (oferta_excedent…) listo
 docs/                          Material de trabajo local — IGNORADO POR GIT (§7)
@@ -920,6 +922,35 @@ apagado y en test). Detalle:
   Si se cambia de dominio, verificarlo en `resend.com/domains` y ajustar `RESEND_FROM`. El gate
   `email_test_recipients` limita, mientras se está en pruebas, a los correos de esa whitelist.
 
+### Enlaces de acceso (`enviar-acceso`)
+
+`POST /functions/v1/enviar-acceso { email, canal }` genera el enlace con
+`admin.generateLink({type:'magiclink'})` —Admin API, **no** manda nada— y lo envía por Resend, igual
+que `recuperar-password`. Como el `redirectTo` es exactamente `APP_URL`, que ya está en
+`uri_allow_list`, **no hay que tocar Auth por Management API** (§ arriba).
+
+**Por correo va el enlace; por WhatsApp, solo el código de 6 cifras.** Un enlace mágico es una
+credencial al portador, y `sendText()` guarda el cuerpo en `wa_messages`, que el equipo lee desde
+Mensajería: el enlace quedaría publicado en la consola. Por eso `sendText()` acepta `bodyConsola`,
+que redacta lo que se registra. El código caduca en 1 hora, es de un solo uso y no sirve sin conocer
+el correo.
+
+Límite real del canal WhatsApp (§8): solo llega a números de `meta_test_recipients`, de una ficha
+`es_test`, **y con la ventana de 24 h abierta** —fuera de ella solo entran plantillas aprobadas, y
+la única que hay es `hello_world`, que no admite variables—. Para el resto de las cuentas, correo.
+Mandarlo por WhatsApp de forma general exigiría número de producción y una plantilla de categoría
+`AUTHENTICATION` (checkpoint §12.2).
+
+### Usuarios de prueba
+
+`scripts/crear-usuarios-prueba.ts` crea **6 organizaciones ficticias** (`TEST-PROD-1`, `TEST-PROD-2`,
+`TEST-ENT-SOCIAL`, `TEST-ENT-ANIMAL`, `TEST-ENT-OBRADOR`, `TEST-ENT-COMERCIAL`, todas `es_test`) y
+**12 cuentas** con el patrón `hola+<rol>-<org>@carlessanz.com`, incluidas una de control sin rol y
+un segundo productor para comprobar que no se filtran datos entre organizaciones. Ficticias a
+propósito: un fallo de permisos no expone entonces ninguna organización real, y ningún botón manda
+un WhatsApp a un receptor de verdad. Sin teléfono por defecto (`productores.phone` es UNIQUE y los
+números del equipo ya están dados de alta).
+
 ### Lo que sigue pendiente
 
 - **El modelo de roles existe pero está apagado.** Las políticas por rol y por organización ya están
@@ -1016,12 +1047,15 @@ supabase functions deploy intake-recordatorios --no-verify-jwt   # lo llama pg_c
 supabase functions deploy enviar-email         # con verify_jwt (ofertas por email)
 supabase functions deploy recuperar-password --no-verify-jwt     # login público
 supabase functions deploy crear-oferta         # con verify_jwt (alta desde el panel del productor)
+supabase functions deploy enviar-acceso        # con verify_jwt (enlace mágico / código de acceso)
 supabase secrets set --env-file .secrets.env
 
 deno run -A scripts/import-ara.ts --dry-run   # analizar sin escribir
 deno run -A scripts/import-ara.ts             # importar los CSV maestros
 
 deno run -A scripts/comprobar-rls.ts          # arnés de RLS: matriz de permisos por cuenta (§4bis)
+deno run -A scripts/crear-usuarios-prueba.ts --dry-run   # simular el alta de los 12 usuarios de prueba
+deno run -A scripts/crear-usuarios-prueba.ts             # crearlos (idempotente)
 
 supabase migration up --local                 # aplicar migraciones pendientes SOLO en local (no borra datos)
 ```

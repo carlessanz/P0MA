@@ -113,9 +113,18 @@ export async function sendText(
   supabase: any,
   to: string,
   body: string,
+  /**
+   * Qué se guarda en la consola en lugar del cuerpo real. Se usa para los códigos de
+   * acceso: `wa_messages` lo lee cualquier miembro del equipo desde Mensajería, así que
+   * un código enviado tal cual quedaría publicado ahí.
+   */
+  opciones?: { bodyConsola?: string },
 ): Promise<RespuestaMeta> {
   const r = await enviar({ to, type: "text", text: { body, preview_url: false } });
-  if (r.ok) await registrarSaliente(supabase, to, "text", body, r.waMessageId, r.data);
+  if (r.ok) {
+    await registrarSaliente(
+      supabase, to, "text", opciones?.bodyConsola ?? body, r.waMessageId, r.data);
+  }
   return r;
 }
 

@@ -139,6 +139,8 @@ interface Resultado {
   cuenta: string;
   check: Check;
   ok: boolean;
+  /** true = la tabla no tiene datos, así que la comprobación no demuestra nada. */
+  saltada?: boolean;
   detalle: string;
 }
 
@@ -203,7 +205,19 @@ async function comprobar(cliente: SupabaseClient, check: Check): Promise<{ ok: b
 const cuentas = await leerCuentas();
 const resultados: Resultado[] = [];
 
-for (const cuenta of cuentas) {
+// Tablas que el equipo ve vacías: no tienen filas, punto. Una expectativa de "permitir"
+// sobre ellas no demuestra nada, así que se salta en vez de dar un falso negativo (es lo
+// que pasa contra una base local recién sembrada, donde no hay ofertas ni mensajes).
+const vacias = new Set<string>();
+
+// El equipo primero: es quien lo ve todo, así que sirve para saber qué tablas están
+// vacías de verdad antes de juzgar lo que ven los demás.
+const ordenadas = [...cuentas].sort((a, b) => {
+  const peso = (c: Cuenta) => (c.rol === "equip" || c.rol === "super_admin" ? 0 : 1);
+  return peso(a) - peso(b);
+});
+
+for (const cuenta of ordenadas) {
   const cliente = createClient(url, publishable, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -220,9 +234,14 @@ for (const cuenta of cuentas) {
     });
     continue;
   }
+  const esEquipo = cuenta.rol === "equip" || cuenta.rol === "super_admin";
   for (const check of MATRIZ[cuenta.rol] ?? []) {
     const { ok, detalle } = await comprobar(cliente, check);
-    resultados.push({ cuenta: cuenta.etiqueta, check, ok, detalle });
+    if (esEquipo && check.op === "leer" && check.esperado === "permitir" && detalle.startsWith("0 filas")) {
+      vacias.add(check.tabla);
+    }
+    const saltada = check.op === "leer" && check.esperado === "permitir" && vacias.has(check.tabla);
+    resultados.push({ cuenta: cuenta.etiqueta, check, ok: saltada ? true : ok, saltada, detalle });
   }
   await cliente.auth.signOut();
 }
@@ -238,15 +257,20 @@ const ancho = {
 
 console.log();
 for (const r of resultados) {
-  const marca = r.ok ? "  ok  " : " FALLA";
+  const marca = r.saltada ? " sense" : r.ok ? "  ok  " : " FALLA";
+  const detalle = r.saltada ? "taula buida, no es pot comprovar" : r.detalle;
   console.log(
     `${marca}  ${r.cuenta.padEnd(ancho.cuenta)}  ${r.check.tabla.padEnd(ancho.tabla)}  ` +
-      `${r.check.op.padEnd(11)}  ${r.check.descripcion}  → ${r.detalle}`,
+      `${r.check.op.padEnd(11)}  ${r.check.descripcion}  → ${detalle}`,
   );
 }
 
 const fallos = resultados.filter((r) => !r.ok);
-console.log(`\n${resultados.length - fallos.length}/${resultados.length} comprobaciones correctas.`);
+const saltadas = resultados.filter((r) => r.saltada).length;
+console.log(
+  `\n${resultados.length - fallos.length - saltadas}/${resultados.length - saltadas} ` +
+    `comprobaciones correctas` + (saltadas > 0 ? ` (${saltadas} sin datos que comprobar).` : "."),
+);
 if (fallos.length > 0) {
   console.log("\nRevisa las políticas antes de seguir. Para volver al estado permisivo:");
   console.log("  psql … -f scripts/sql/rls-emergencia.sql   (o pégalo en el SQL Editor)\n");
