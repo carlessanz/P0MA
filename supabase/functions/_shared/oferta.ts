@@ -126,13 +126,27 @@ export function componerTextoOferta(campos: {
   return lineas.join("\n");
 }
 
-/** Crea el excedente a partir de una sesión completa y avisa al productor. */
-export async function crearExcedenteDesdeSesion(
+/** Resultado de crear un excedente, para que quien llame decida qué contar. */
+export interface ResultadoCreacion {
+  ok: boolean;
+  /** Identificador legible (E-AAMMDD-XXX-YYY-N) cuando ok. */
+  idExcedente?: string;
+  excedenteId?: string;
+  error?: string;
+}
+
+/**
+ * Alta de un excedente a partir de los datos del cuestionario, vengan de donde vengan:
+ * del intake por WhatsApp o del formulario del panel del productor.
+ *
+ * Es el ÚNICO sitio donde se generan `id_excedente`, `texto_oferta` y `valor_eur`. Si
+ * el panel lo duplicara en TypeScript, las dos versiones divergirían en semanas.
+ */
+export async function crearExcedente(
   supabase: Cliente,
-  sesion: SesionCompleta,
+  d: Record<string, unknown>,
   productor: { id: string; name: string },
-): Promise<void> {
-  const d = sesion.datos_parciales;
+): Promise<ResultadoCreacion> {
   const producto = String(d.producte ?? "");
 
   // Datos que no se le piden al productor porque ya están en la base.
@@ -171,7 +185,7 @@ export async function crearExcedenteDesdeSesion(
     observacions: String(d.observacions ?? ""),
   });
 
-  const { error } = await supabase.from("excedentes").insert({
+  const { data: fila, error } = await supabase.from("excedentes").insert({
     id_excedente: idExcedente,
     productor_id: productor.id,
     ubicacion_id: d.ubicacio ?? null,
@@ -194,10 +208,28 @@ export async function crearExcedenteDesdeSesion(
     valor_eur: kg ? kg * Number(prod?.eur_kg ?? 1) : null,
     texto_oferta: textoOferta,
     estado: "publicada",
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("excedentes insert:", error.message);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, idExcedente, excedenteId: fila?.id };
+}
+
+/**
+ * Cierre del intake por WhatsApp: crea el excedente y avisa al productor.
+ * La creación en sí vive en crearExcedente(), compartida con el panel.
+ */
+export async function crearExcedenteDesdeSesion(
+  supabase: Cliente,
+  sesion: SesionCompleta,
+  productor: { id: string; name: string },
+): Promise<void> {
+  const producto = String(sesion.datos_parciales.producte ?? "");
+  const r = await crearExcedente(supabase, sesion.datos_parciales, productor);
+
+  if (!r.ok) {
     await sendText(
       supabase, sesion.telefono,
       "Hi ha hagut un problema en registrar l'oferta. Ho revisem i et diem alguna cosa.",
@@ -208,7 +240,7 @@ export async function crearExcedenteDesdeSesion(
   await supabase.from("intake_sessions").delete().eq("id", sesion.id);
   await sendText(
     supabase, sesion.telefono,
-    `Gràcies! Hem registrat la teva oferta de ${producto} amb la referència ${idExcedente}. ` +
+    `Gràcies! Hem registrat la teva oferta de ${producto} amb la referència ${r.idExcedente}. ` +
       `T'avisarem quan estigui canalitzada.`,
   );
 }

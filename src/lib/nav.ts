@@ -1,0 +1,88 @@
+// Menú declarativo por rol. Mismo espíritu que el NAV que vivía en App.tsx (array de
+// objetos con clave i18n), ampliado a grupos, iconos y contadores en vivo.
+//
+// El menú es lo que hace visible el modelo de roles: cada panel enseña solo sus
+// secciones, y el conmutador del pie del sidebar permite saltar entre paneles cuando
+// una misma cuenta es, por ejemplo, productora y receptora (§12.16).
+
+import {
+  Building2, ClipboardCheck, Handshake, History, Home, LayoutDashboard,
+  MessageSquare, Package, PlusCircle, Settings2, Store, UserCircle, Users,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import type { Rol } from './rols'
+
+/** Contadores que el sidebar pinta como badge; se resuelven en AppSidebar. */
+export type Comptador = 'aprovacions' | 'missatges'
+
+export interface NavItem {
+  to: string
+  labelKey: string
+  icon: LucideIcon
+  /** Coincidencia exacta (para los índices de sección). */
+  end?: boolean
+  comptador?: Comptador
+  /** Acción destacada del panel (se pinta como botón, no como enlace). */
+  primari?: boolean
+}
+
+export interface NavGrup {
+  titolKey?: string
+  items: NavItem[]
+}
+
+const EQUIP: NavGrup[] = [
+  { items: [{ to: '/equip/tauler', labelKey: 'nav.dashboard', icon: LayoutDashboard, end: true }] },
+  {
+    titolKey: 'nav.grp_operacio',
+    items: [
+      { to: '/equip/ofertes', labelKey: 'nav.offers', icon: Package },
+      { to: '/equip/aprovacions', labelKey: 'nav.approvals', icon: ClipboardCheck, comptador: 'aprovacions' },
+      { to: '/equip/missatgeria', labelKey: 'nav.messaging', icon: MessageSquare, comptador: 'missatges' },
+    ],
+  },
+  {
+    titolKey: 'nav.grp_base',
+    items: [
+      { to: '/equip/productors', labelKey: 'nav.producers', icon: Users },
+      { to: '/equip/entitats', labelKey: 'nav.entities', icon: Building2 },
+    ],
+  },
+  { items: [{ to: '/equip/configuracio', labelKey: 'nav.settings', icon: Settings2 }] },
+]
+
+const PRODUCTOR: NavGrup[] = [
+  {
+    items: [
+      { to: '/productor/inici', labelKey: 'nav.home', icon: Home, end: true },
+      { to: '/productor/ofertes/nova', labelKey: 'nav.new_offer', icon: PlusCircle, primari: true },
+      { to: '/productor/ofertes', labelKey: 'nav.my_offers', icon: Package, end: true },
+      { to: '/productor/perfil', labelKey: 'nav.my_org', icon: UserCircle },
+    ],
+  },
+]
+
+const RECEPTOR: NavGrup[] = [
+  {
+    items: [
+      { to: '/receptor/mercat', labelKey: 'nav.market', icon: Store, end: true },
+      { to: '/receptor/interessos', labelKey: 'nav.my_interests', icon: Handshake },
+      { to: '/receptor/historic', labelKey: 'nav.history', icon: History },
+      { to: '/receptor/perfil', labelKey: 'nav.my_org', icon: UserCircle },
+    ],
+  },
+]
+
+export function navPerRol(rol: Rol | null): NavGrup[] {
+  switch (rol) {
+    case 'intern': return EQUIP
+    case 'productor': return PRODUCTOR
+    case 'receptor': return RECEPTOR
+    default: return []
+  }
+}
+
+/** Entradas planas, para la barra inferior de móvil. */
+export function itemsPlans(grups: NavGrup[]): NavItem[] {
+  return grups.flatMap((g) => g.items)
+}

@@ -14,6 +14,10 @@
 import { sendBotones, sendLista, sendText } from "./whatsapp.ts";
 import type { FilaLista } from "./whatsapp.ts";
 import { crearExcedenteDesdeSesion } from "./oferta.ts";
+// Los pasos y los vocabularios cerrados viven en camposOferta.ts, compartidos con el
+// formulario del panel del productor: una sola lista, dos interfaces.
+import { PASOS, TIPOS_CAIXA } from "./camposOferta.ts";
+import type { Paso } from "./camposOferta.ts";
 
 // Una sesión sin actividad se da por abandonada y se empieza de cero.
 const CADUCIDAD_HORAS = 12;
@@ -21,34 +25,6 @@ const CADUCIDAD_HORAS = 12;
 const MAX_INTENTOS = 2;
 // Se dejan 9 opciones visibles y la décima fila es "Més…".
 const OPCIONES_POR_PAGINA = 9;
-
-const TIPOS_CAIXA = [
-  "Rígida FE",
-  "Plegable FE",
-  "Palot",
-  "Retornable",
-  "Productor/a",
-  "No retorn",
-];
-
-// Orden de los pasos. `familia` solo sirve para acotar `producte`.
-const PASOS = [
-  "familia",
-  "producte",
-  "varietat",
-  "kg",
-  "caixes",
-  "tipus_caixa",
-  "retorn",
-  "ubicacio",
-  "disponible_fins",
-  "horari",
-  "modalitat",
-  "preu_minim",
-  "causa",
-  "observacions",
-] as const;
-type Paso = typeof PASOS[number];
 
 interface Sesion {
   id: string;

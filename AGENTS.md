@@ -148,7 +148,7 @@ urgente, porque desbloquea el resto, es el **modelo de roles**.
 
 | Capa | Tecnología |
 | --- | --- |
-| Frontend | Vite 7 + React 19 + TypeScript 5.9 (`strict`) + **Tailwind v4 + shadcn/ui** |
+| Frontend | Vite 7 + React 19 + TypeScript 5.9 (`strict`) + **Tailwind v4 + shadcn/ui** + **react-router v7** |
 | Datos / Realtime | Supabase (`@supabase/supabase-js` v2) |
 | Backend | Edge Functions de Supabase (Deno / TypeScript) |
 | Email | **Resend** (API HTTP, vía Edge Function `enviar-email`) |
@@ -156,14 +156,27 @@ urgente, porque desbloquea el resto, es el **modelo de roles**.
 | Scripts | Deno 2.x (`scripts/import-ara.ts`) |
 | Hosting frontend | Vercel (proyecto `pdapp-wp`) |
 
-Sin router ni librería de estado. **UI con Tailwind v4 + shadcn/ui**: componentes en
+**Con router** (`react-router` v7, desde 2026-07-30: los paneles por rol necesitan URL propia,
+enlace profundo y gesto «atrás»; el `useState<View>` anterior no daba ninguna de las tres) y sin
+librería de estado. `vercel.json` añade el *rewrite* de SPA: sin él, recargar cualquier ruta que no
+sea `/` devuelve 404 en producción. **UI con Tailwind v4 + shadcn/ui**: componentes en
 `src/components/ui/` (generados con el CLI de shadcn, `components.json`), tokens del **tema POMA**
 en `src/index.css` (navy `#234C66` / crema `#E0EBC7` / coral `#EE7A5F`, fuente Space Grotesk),
 alias `@/` → `src/`. Iconos `lucide-react`, toasts `sonner`, `cn()` en `src/lib/utils.ts`. El
 logo (`public/logo-poma.svg`) y el favicon están en `public/`.
 
-**Responsive** (breakpoint `md`, 768px). El **header** ocupa el 98% del ancho y en móvil se parte
-en dos filas (logo + idioma/salir arriba, nav con scroll horizontal debajo). Los **listados** van
+**Layout** (desde 2026-07-30): **menú lateral vertical plegable** (`sidebar` de shadcn: 16rem ↔ 3rem
+en modo icono, estado en cookie, atajo Ctrl/Cmd+B) + barra superior de 14 con el título de la
+sección y el menú de la persona (idioma y salir). En móvil el menú se abre como panel deslizante y,
+**solo en los paneles de productor y receptor**, hay además **barra inferior** con sus 3-4 secciones
+(el equipo tiene siete, no caben). La barra inferior es hermana flex `shrink-0`, no `fixed`: así
+ninguna pantalla necesita padding inferior y el composer del chat nunca queda debajo.
+
+⚠️ **Contrato de alturas**: el shell es una columna flex `h-dvh overflow-hidden`; `main` es
+`min-h-0 flex-1` y scrollea él, salvo en las rutas marcadas `fullBleed` (Mensajería), que gestionan
+su propio alto. **Ninguna pantalla vuelve a escribir `h-dvh`.**
+
+**Responsive** (breakpoint `md`, 768px). Los **listados** van
 en tabla con `overflow-x-auto` (scroll horizontal en móvil); los **detalles/CRUD** usan grids
 `sm:grid-cols-2`. La **mensajería** usa patrón **lista↔conversación**: en móvil la lista ocupa toda
 la pantalla y, al elegir un contacto, la conversación pasa a pantalla completa con botón «atrás»
@@ -174,14 +187,31 @@ usa `h-dvh` para que el composer no quede bajo la barra del navegador móvil.
 
 ```text
 index.html
+vercel.json                    Rewrite de SPA (sin él, recargar una ruta profunda da 404)
 .env.local.example             Plantilla de variables del frontend (sí se versiona)
 src/
   main.tsx                     Punto de entrada React
-  App.tsx                      Estado raíz: vista (6 secciones), contactos, contacto seleccionado
+  App.tsx                      Tres capas: AuthGate → AppContextProvider → RouterProvider
+  router/index.tsx             Mapa de rutas por rol (/equip, /productor, /receptor)
+  layout/AppShell.tsx          Sidebar + barra superior + contenido + barra inferior (§2)
+  layout/AppSidebar.tsx        Menú lateral plegable y conmutador de panel
+  layout/BottomNav.tsx         Barra inferior de móvil (productor y receptor)
+  layout/UserMenu.tsx          Avatar, idioma y salir
+  hooks/useAppContext.tsx      get_my_session_context(): quién eres y qué panel ves (§4bis)
+  hooks/use-mobile.ts          Hook del breakpoint (lo usa el sidebar de shadcn)
+  routes/Comuns.tsx            Raíz por rol, RoleGuard y pantalla «sense accés»
+  routes/PerfilOrganitzacio.tsx  Ficha propia, escrita por RPC con lista blanca
+  routes/equip/                Envoltorios de las pantallas que ya existían + Aprovacions
+  routes/productor/            Inicio, listado, alta de oferta y detalle
+  routes/receptor/             Mercat, interessos i històric
   types.ts                     Tipos de todas las tablas
   index.css                    Todos los estilos (global, ~825 líneas)
   lib/
     supabase.ts                Cliente Supabase (lanza si faltan las env vars)
+    rols.ts                    Tipos del contexto de sesión y ruta por rol (§4bis)
+    nav.ts                     Menú declarativo por rol (grupos, iconos, contadores)
+    ofertes.ts                 Alta de oferta (Edge Function) e interés (RPC) de los paneles
+    contactes.ts               assegurarContacte(): crea el wa_contact antes de abrir el chat
     whatsapp.ts                sendWhatsApp(): llama a la Edge Function; nunca lanza
     plantillas.ts              plantillaPrimerContacte(): tría plantilla de 1r contacte per rol (§6ter)
     ofertaTemplate.ts          construirComponentsOferta(): variables de la plantilla oferta_excedent (§6ter)
@@ -219,7 +249,9 @@ supabase/
   functions/
     _shared/whatsapp.ts        Graph API + interruptor de envío (texto/plantilla/interactivos)
     _shared/intake.ts          Motor conversacional (máquina de estados)
-    _shared/oferta.ts          id_excedente + texto "OFERTA DISPONIBLE"
+    _shared/oferta.ts          crearExcedente(): id_excedente + texto "OFERTA DISPONIBLE"
+    _shared/camposOferta.ts    Los 14 pasos, compartidos por el intake y el panel (§6bis)
+    crear-oferta/index.ts      GET /campos (descriptor) + POST (alta desde el panel del productor)
     _shared/priorizacion.ts    Puntuación de entidades (pura, sin red)
     _shared/respuestas.ts      Captura el sí/no de una entidad a una oferta (aceptación, §5)
     _shared/gate.ts            Gate de envío: esTelefonoTest/esEmailTest + modoTestActivo (modo test global, §8)
@@ -624,9 +656,32 @@ que corresponde al momento de cierre y todavía no está implementado.
 
 ## 6ter. Distribución, cierre y panel
 
-Una vez creado el excedente, el técnico trabaja sobre él desde el **panel** (vistas
-Ofertas / Detalle). Navegación: barra superior de 6 secciones —**Dashboard | Ofertas |
-Productores | Entidades | Mensajería | Configuració**— en `App.tsx`. **Configuració** (`Settings.tsx`)
+**Tres paneles, un mismo dato.** Desde 2026-07-30 la navegación es un **menú lateral plegable**
+(§2) cuyo contenido depende del rol (`src/lib/nav.ts`), con rutas propias:
+
+| Panel | Rutas | Qué ve |
+| --- | --- | --- |
+| **Equip** (`intern`) | `/equip/tauler · ofertes[/:id] · aprovacions · productors[/:id] · entitats[/:id] · missatgeria[/:phone] · configuracio` | Todo lo que ya existía, más la **cola global de aprobaciones** |
+| **Productor** | `/productor/inici · ofertes · ofertes/nova · ofertes/:id · perfil` | Sus ofertas, su progreso y el **alta con el mismo cuestionario del intake** |
+| **Receptor** | `/receptor/mercat · interessos · historic · perfil` | Las ofertas **compatibles con su `tipo_receptor`**, su interés y su histórico |
+
+Una cuenta puede tener más de un panel (doble rol, §12.16): el pie del menú lateral conmuta entre
+ellos. Las pantallas del equipo son **los mismos componentes de siempre** (`Dashboard`, `OffersList`,
+`OfferDetail`, `ProducersList`, `EntitiesList`, `RecordDetail`, `ContactList`, `Conversation`,
+`Settings`), sin tocar: lo único que cambió es quién los monta y de dónde sale el `id`.
+
+**El productor publica con el mismo cuestionario que el bot**, y no por copia: el formulario pide el
+descriptor a `GET /functions/v1/crear-oferta/campos`, que lo sirve desde `_shared/camposOferta.ts`,
+el mismo módulo del que el intake saca sus pasos. El alta llama a `POST /crear-oferta`, que reutiliza
+`crearExcedente()` de `_shared/oferta.ts`: **un solo sitio genera `id_excedente` y `texto_oferta`**.
+`authenticated` no tiene INSERT sobre `excedentes`, así que el correlativo no es falsificable.
+
+**El receptor muestra interés** con la RPC `manifestar_interes()`, que deja la fila de
+`oferta_respuestas` igual que el diálogo de WhatsApp (`acceptada` + `aprovacio='pendent'`, con
+`canal='panel'`): **cae en la misma cola** que el equipo ya aprueba desde `OfferDetail`, con su
+Realtime ya cableado.
+
+Navegación anterior (barra superior de 6 secciones en `App.tsx`): retirada. **Configuració** (`Settings.tsx`)
 reúne el interruptor del **modo test** (§8) y el idioma. El **Dashboard** (`Dashboard.tsx`) es la
 landing tras el login: guía del proceso (los 4 momentos), KPIs agregados (ofertas por estado
 —incluidas `cancelada`—, kg canalizados/pendientes, productores/entidades y cuántos pueden
@@ -960,6 +1015,7 @@ supabase functions deploy priorizar-entidades  # con verify_jwt
 supabase functions deploy intake-recordatorios --no-verify-jwt   # lo llama pg_cron
 supabase functions deploy enviar-email         # con verify_jwt (ofertas por email)
 supabase functions deploy recuperar-password --no-verify-jwt     # login público
+supabase functions deploy crear-oferta         # con verify_jwt (alta desde el panel del productor)
 supabase secrets set --env-file .secrets.env
 
 deno run -A scripts/import-ara.ts --dry-run   # analizar sin escribir

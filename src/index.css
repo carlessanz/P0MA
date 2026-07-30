@@ -36,14 +36,16 @@
   --input: #cdd8e0;
   --ring: #234c66;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #234c66;
-  --sidebar-primary: #234c66;
-  --sidebar-primary-foreground: #e0ebc7;
-  --sidebar-accent: #e0ebc7;
-  --sidebar-accent-foreground: #234c66;
-  --sidebar-border: #dbe3ec;
-  --sidebar-ring: #234c66;
+  /* Menú lateral en navy con la crema POMA, para conservar la identidad que tenía
+     la barra superior: activo en crema sobre navy, hover en navy aclarado. */
+  --sidebar: #234c66;
+  --sidebar-foreground: #e0ebc7;
+  --sidebar-primary: #e0ebc7;
+  --sidebar-primary-foreground: #234c66;
+  --sidebar-accent: #2f5f7d;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #35617c;
+  --sidebar-ring: #ee7a5f;
 }
 
 @theme inline {
