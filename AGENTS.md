@@ -253,6 +253,7 @@ scripts/
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
   crear-usuarios-prueba.ts     6 organizaciones ficticias TEST-* y 12 cuentas, idempotente (§9)
+  roles-activos.ts             Interruptor del modelo de roles: on | off | estat (§4bis)
   sql/rls-emergencia.sql       Paracaídas: restaura las políticas permisivas (NO es migración)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
 supabase/
@@ -1073,8 +1074,9 @@ supabase migration up --local                 # aplicar migraciones pendientes S
 
 Emergencia de RLS (§4bis), por orden: primero el interruptor,
 
-```sql
-update app_settings set value = 'false' where key = 'roles_activos';
+```bash
+deno run -A scripts/roles-activos.ts off     # o, en el SQL Editor:
+# update app_settings set value = 'false' where key = 'roles_activos';
 ```
 
 y si no basta, `scripts/sql/rls-emergencia.sql` en el SQL Editor.
