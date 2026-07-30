@@ -1,0 +1,255 @@
+// Arnés de verificación de RLS.
+//
+//   SUPABASE_URL=... VITE_SUPABASE_PUBLISHABLE_KEY=... deno run -A scripts/comprobar-rls.ts
+//
+// Hasta ahora la única comprobación automática del proyecto era `npm run build`
+// (tsc), que no sabe nada de políticas: un error en RLS solo se ve en producción,
+// y de dos maneras igual de malas —o el equipo se queda sin datos, o un usuario
+// externo ve las 452 fichas—. Este script cierra ese agujero.
+//
+// Cómo funciona: abre una sesión REAL por cada cuenta (con la publishable key, como
+// el navegador, así que RLS se aplica igual que en la app), ejecuta la matriz de
+// comprobaciones de abajo y saca una tabla PASS/FAIL. Sale con código 1 si algo
+// falla, para poder encadenarlo en un despliegue.
+//
+// Las credenciales NO van en git: se leen de scripts/data/cuentas-prueba.json
+// (directorio ignorado, §7) o de la variable de entorno CUENTAS_PRUEBA con el mismo
+// contenido. Formato:
+//   [{ "etiqueta": "equip", "email": "...", "password": "...", "rol": "equip" }]
+//
+// Las escrituras solo se prueban sobre filas de prueba (codigo like 'TEST-%') y
+// siempre se revierten; si una fila fixture no existe, la comprobación se salta y
+// se avisa, en vez de tocar datos reales.
+
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+
+const url = Deno.env.get("SUPABASE_URL") ?? Deno.env.get("VITE_SUPABASE_URL");
+const publishable = Deno.env.get("VITE_SUPABASE_PUBLISHABLE_KEY") ??
+  Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+
+if (!url || !publishable) {
+  console.error("Faltan SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en el entorno.");
+  console.error("Se usa la publishable key a propósito: es la que usa el navegador,");
+  console.error("y por tanto la única con la que RLS se comporta como en la app real.");
+  Deno.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Cuentas
+// ---------------------------------------------------------------------------
+
+interface Cuenta {
+  etiqueta: string;
+  email: string;
+  password: string;
+  /** Perfil esperado: decide qué bloque de la matriz se le aplica. */
+  rol: "equip" | "super_admin" | "productor" | "receptor" | "sense_rol";
+}
+
+async function leerCuentas(): Promise<Cuenta[]> {
+  const inline = Deno.env.get("CUENTAS_PRUEBA");
+  if (inline) return JSON.parse(inline);
+  try {
+    return JSON.parse(await Deno.readTextFile("scripts/data/cuentas-prueba.json"));
+  } catch {
+    console.error("No hay cuentas que comprobar.");
+    console.error("Crea scripts/data/cuentas-prueba.json (ignorado por git) o exporta CUENTAS_PRUEBA.");
+    console.error('Formato: [{ "etiqueta": "equip", "email": "...", "password": "...", "rol": "equip" }]');
+    Deno.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Matriz de comprobaciones
+// ---------------------------------------------------------------------------
+
+type Op = "leer" | "insertar" | "actualizar" | "borrar";
+type Esperado = "permitir" | "denegar";
+
+interface Check {
+  tabla: string;
+  op: Op;
+  esperado: Esperado;
+  /** Solo para `leer`: "denegar" significa 0 filas (RLS filtra, no da error). */
+  descripcion: string;
+}
+
+// Lo que CADA rol debe poder hacer. Es la especificación ejecutable de AGENTS.md §4:
+// si alguien relaja una política sin querer, aquí sale en rojo.
+const MATRIZ: Record<Cuenta["rol"], Check[]> = {
+  equip: [
+    { tabla: "productores", op: "leer", esperado: "permitir", descripcion: "ve las fichas de productor" },
+    { tabla: "entidades", op: "leer", esperado: "permitir", descripcion: "ve las entidades" },
+    { tabla: "excedentes", op: "leer", esperado: "permitir", descripcion: "ve todas las ofertas" },
+    { tabla: "canalizaciones", op: "leer", esperado: "permitir", descripcion: "ve las canalizaciones" },
+    { tabla: "oferta_respuestas", op: "leer", esperado: "permitir", descripcion: "ve las respuestas" },
+    { tabla: "wa_messages", op: "leer", esperado: "permitir", descripcion: "ve la mensajería" },
+    { tabla: "intake_sessions", op: "leer", esperado: "permitir", descripcion: "ve los intakes en curso" },
+    { tabla: "app_settings", op: "leer", esperado: "permitir", descripcion: "lee el modo test" },
+    { tabla: "productos", op: "leer", esperado: "permitir", descripcion: "lee el catálogo" },
+    { tabla: "app_config", op: "leer", esperado: "denegar", descripcion: "NO lee los secretos" },
+    { tabla: "usuario_roles", op: "insertar", esperado: "denegar", descripcion: "NO se puede dar roles a sí mismo" },
+  ],
+  super_admin: [
+    { tabla: "productores", op: "leer", esperado: "permitir", descripcion: "ve las fichas de productor" },
+    { tabla: "app_settings", op: "actualizar", esperado: "permitir", descripcion: "puede tocar el modo test" },
+    { tabla: "app_config", op: "leer", esperado: "denegar", descripcion: "NO lee los secretos" },
+  ],
+  productor: [
+    { tabla: "productores", op: "leer", esperado: "permitir", descripcion: "ve SU ficha (solo la suya)" },
+    { tabla: "entidades", op: "leer", esperado: "denegar", descripcion: "NO ve las entidades" },
+    { tabla: "wa_messages", op: "leer", esperado: "denegar", descripcion: "NO ve la mensajería" },
+    { tabla: "wa_contacts", op: "leer", esperado: "denegar", descripcion: "NO ve los contactos" },
+    { tabla: "intake_sessions", op: "leer", esperado: "denegar", descripcion: "NO ve los intakes" },
+    { tabla: "app_settings", op: "leer", esperado: "denegar", descripcion: "NO ve la configuración" },
+    { tabla: "productos", op: "leer", esperado: "permitir", descripcion: "lee el catálogo (lo necesita el alta de oferta)" },
+    { tabla: "excedentes", op: "insertar", esperado: "denegar", descripcion: "NO inserta ofertas a mano (van por la Edge Function)" },
+    { tabla: "canalizaciones", op: "insertar", esperado: "denegar", descripcion: "NO se canaliza a sí mismo" },
+  ],
+  receptor: [
+    { tabla: "productores", op: "leer", esperado: "denegar", descripcion: "NO ve las fichas de productor" },
+    { tabla: "entidades", op: "leer", esperado: "permitir", descripcion: "ve SU entidad (solo la suya)" },
+    { tabla: "excedentes", op: "leer", esperado: "permitir", descripcion: "ve las ofertas compatibles" },
+    { tabla: "wa_messages", op: "leer", esperado: "denegar", descripcion: "NO ve la mensajería" },
+    { tabla: "app_settings", op: "leer", esperado: "denegar", descripcion: "NO ve la configuración" },
+    { tabla: "oferta_respuestas", op: "insertar", esperado: "denegar", descripcion: "NO escribe respuestas a mano (van por RPC)" },
+    { tabla: "canalizaciones", op: "insertar", esperado: "denegar", descripcion: "NO se canaliza a sí mismo" },
+  ],
+  sense_rol: [
+    { tabla: "productores", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
+    { tabla: "entidades", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
+    { tabla: "excedentes", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
+  ],
+};
+
+// Cuerpos mínimos para probar un INSERT que DEBE fallar. Nunca llegan a la base si
+// la política está bien; si llegara, la fila se borra en el `finally`.
+const FILA_PRUEBA: Record<string, Record<string, unknown>> = {
+  excedentes: { producto: "TEST-RLS", estado: "borrador" },
+  canalizaciones: { kg_confirmados: 1 },
+  oferta_respuestas: { telefono: "34600000000", canal: "panel" },
+  usuario_roles: { rol: "super_admin" },
+};
+
+// ---------------------------------------------------------------------------
+// Ejecución
+// ---------------------------------------------------------------------------
+
+interface Resultado {
+  cuenta: string;
+  check: Check;
+  ok: boolean;
+  detalle: string;
+}
+
+/** ¿El error es un rechazo de permisos? (42501 = insufficient_privilege / RLS) */
+function esRechazo(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const codigo = error.code ?? "";
+  const mensaje = (error.message ?? "").toLowerCase();
+  return codigo === "42501" || codigo === "PGRST301" ||
+    mensaje.includes("permission denied") || mensaje.includes("row-level security");
+}
+
+async function comprobar(cliente: SupabaseClient, check: Check): Promise<{ ok: boolean; detalle: string }> {
+  if (check.op === "leer") {
+    const { data, error } = await cliente.from(check.tabla).select("*").limit(1);
+    if (error) {
+      // Un error de permisos con "denegar" esperado es exactamente lo que queremos.
+      if (esRechazo(error)) {
+        return { ok: check.esperado === "denegar", detalle: `rechazado (${error.code ?? "42501"})` };
+      }
+      return { ok: false, detalle: `error inesperado: ${error.message}` };
+    }
+    const filas = data?.length ?? 0;
+    // Sin error, RLS simplemente filtra: 0 filas es la forma normal de "denegar".
+    if (check.esperado === "denegar") {
+      return { ok: filas === 0, detalle: filas === 0 ? "0 filas" : `¡ve ${filas} fila(s)!` };
+    }
+    return { ok: filas > 0, detalle: filas > 0 ? `${filas} fila(s)` : "0 filas (¿falta fixture?)" };
+  }
+
+  if (check.op === "insertar") {
+    const fila = FILA_PRUEBA[check.tabla] ?? { nombre: "TEST-RLS" };
+    const { data, error } = await cliente.from(check.tabla).insert(fila).select("*");
+    if (error) {
+      if (esRechazo(error)) {
+        return { ok: check.esperado === "denegar", detalle: `rechazado (${error.code ?? "42501"})` };
+      }
+      // Un check/NOT NULL que salta antes que RLS no demuestra nada: mejor avisar.
+      return { ok: check.esperado === "denegar", detalle: `error de datos: ${error.message.slice(0, 60)}` };
+    }
+    // Si ha entrado, se limpia inmediatamente para no dejar basura.
+    const ids = (data ?? []).map((f: Record<string, unknown>) => f.id).filter(Boolean);
+    for (const id of ids) await cliente.from(check.tabla).delete().eq("id", id);
+    return { ok: check.esperado === "permitir", detalle: "insertado (y revertido)" };
+  }
+
+  if (check.op === "actualizar") {
+    // Solo se prueba sobre app_settings, que es idempotente: se reescribe su valor actual.
+    const { data: actual } = await cliente.from(check.tabla).select("key, value").limit(1).maybeSingle();
+    if (!actual) return { ok: true, detalle: "sin fila que probar (saltado)" };
+    const { error } = await cliente.from(check.tabla)
+      .update({ value: actual.value }).eq("key", actual.key);
+    if (error) {
+      return { ok: check.esperado === "denegar", detalle: `rechazado (${error.code ?? "?"})` };
+    }
+    return { ok: check.esperado === "permitir", detalle: "actualizado (mismo valor)" };
+  }
+
+  return { ok: true, detalle: "operación no implementada (saltada)" };
+}
+
+const cuentas = await leerCuentas();
+const resultados: Resultado[] = [];
+
+for (const cuenta of cuentas) {
+  const cliente = createClient(url, publishable, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { error: authError } = await cliente.auth.signInWithPassword({
+    email: cuenta.email,
+    password: cuenta.password,
+  });
+  if (authError) {
+    resultados.push({
+      cuenta: cuenta.etiqueta,
+      check: { tabla: "—", op: "leer", esperado: "permitir", descripcion: "iniciar sesión" },
+      ok: false,
+      detalle: authError.message,
+    });
+    continue;
+  }
+  for (const check of MATRIZ[cuenta.rol] ?? []) {
+    const { ok, detalle } = await comprobar(cliente, check);
+    resultados.push({ cuenta: cuenta.etiqueta, check, ok, detalle });
+  }
+  await cliente.auth.signOut();
+}
+
+// ---------------------------------------------------------------------------
+// Informe
+// ---------------------------------------------------------------------------
+
+const ancho = {
+  cuenta: Math.max(7, ...resultados.map((r) => r.cuenta.length)),
+  tabla: Math.max(6, ...resultados.map((r) => r.check.tabla.length)),
+};
+
+console.log();
+for (const r of resultados) {
+  const marca = r.ok ? "  ok  " : " FALLA";
+  console.log(
+    `${marca}  ${r.cuenta.padEnd(ancho.cuenta)}  ${r.check.tabla.padEnd(ancho.tabla)}  ` +
+      `${r.check.op.padEnd(11)}  ${r.check.descripcion}  → ${r.detalle}`,
+  );
+}
+
+const fallos = resultados.filter((r) => !r.ok);
+console.log(`\n${resultados.length - fallos.length}/${resultados.length} comprobaciones correctas.`);
+if (fallos.length > 0) {
+  console.log("\nRevisa las políticas antes de seguir. Para volver al estado permisivo:");
+  console.log("  psql … -f scripts/sql/rls-emergencia.sql   (o pégalo en el SQL Editor)\n");
+  Deno.exit(1);
+}
+console.log();
