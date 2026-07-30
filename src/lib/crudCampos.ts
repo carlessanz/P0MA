@@ -53,6 +53,9 @@ export const ENTIDAD_CAMPOS: CampoDef[] = [
   { key: 'estat', label: 'f.estat' },
   { key: 'gestio', label: 'f.gestio' },
   { key: 'modalitat', label: 'f.modalitat', tipo: 'select', opciones: ['Donació', 'Transformació', 'Venda', 'Maquila', 'Altres'] },
+  // Decide qué ofertas ve esta entidad en su panel (§4bis). Sin él no ve ninguna:
+  // la derivación desde `modalitat` deja en null lo que no era concluyente.
+  { key: 'tipo_receptor', label: 'f.tipo_receptor', tipo: 'select', opciones: ['social', 'animal', 'transformador', 'comercial'] },
   { key: 'area_geografica', label: 'f.area_geografica' },
   { key: 'poblacion', label: 'f.poblacion' },
   { key: 'direccion', label: 'f.direccion' },
