@@ -106,6 +106,10 @@ const MATRIZ: Record<Cuenta["rol"], Check[]> = {
     { tabla: "excedentes", op: "insertar", esperado: "denegar", descripcion: "NO inserta ofertas a mano (van por la Edge Function)" },
     { tabla: "canalizaciones", op: "insertar", esperado: "denegar", descripcion: "NO se canaliza a sí mismo" },
   ],
+  // OJO con el receptor: «ve las ofertas compatibles» solo se cumple si existe alguna
+  // oferta viva de una modalitat que le encaje (`modalitat_receptor_compat`). Un
+  // receptor comercial sin ninguna oferta de venda publicada verá 0, y estará bien.
+  // Para que el arnés sea informativo, pon aquí una cuenta cuya modalitat tenga oferta.
   receptor: [
     { tabla: "productores", op: "leer", esperado: "denegar", descripcion: "NO ve las fichas de productor" },
     { tabla: "entidades", op: "leer", esperado: "permitir", descripcion: "ve SU entidad (solo la suya)" },

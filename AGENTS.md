@@ -128,7 +128,7 @@ derivacion_espigueo, historial_estado, webhook_log y catálogos.
 | `webhook_log` | `wa_messages.raw` (jsonb) | 🟡 |
 | catálogos (categorías/unidades/motivos/destinos) | `productos`/`causas`/`factores_conversion` | 🟡 |
 | back office, cola de **aprobaciones**, Super Admin | — (cualquier `authenticated` publica/edita) | ⬜ |
-| **roles y permisos** | RLS por rol y organización desplegada, con interruptor `roles_activos` **todavía apagado** (§4bis) | 🟡 |
+| **roles y permisos** | RLS por rol y organización, encendida en producción (§4bis) | ✅ |
 | parte pública / catálogo público | — (todo tras `AuthGate`) | ⬜ |
 | **modelo asistido** | de facto: el equipo opera todo desde el panel | 🟡 |
 | multiidioma `ca`/`es` | i18n propio (`src/lib/i18n.tsx`) | ✅ |
@@ -462,10 +462,18 @@ políticas: `donacio`→social/animal/transformador, `venda`→comercial/transfo
 
 ### El interruptor `roles_activos`
 
+> ✅ **ENCENDIDO en producción desde el 2026-07-30.** Cada cuenta ve solo lo suyo. Verificado tras
+> el encendido: las tres cuentas del equipo siguen viendo las 343 fichas de productor, las 116
+> entidades y la mensajería, y pueden canalizar y editar; un productor de prueba solo ve su ficha.
+
 `app_settings.roles_activos` (`'false'` de fábrica). Todos los helpers de rol empiezan por
 `not roles_activos() or …`: **con el interruptor apagado el comportamiento es exactamente el de
 antes** (cualquier autenticado lo puede todo), y encenderlo es el único paso que cambia algo. Se
-revierte con el mismo `update`, en segundos, sin desplegar y sin cerrar sesiones.
+revierte con `deno run -A scripts/roles-activos.ts off`, en segundos, sin desplegar y sin cerrar
+sesiones (el rol se consulta en cada política, no viaja en el JWT).
+
+**Quién es quién hoy**: `hola@carlessanz.com` es `super_admin`; las otras dos cuentas del equipo son
+`admin`. Consecuencia práctica: **solo el super_admin puede apagar el modo test** o borrar fichas.
 
 Es un **fail-open deliberado**, al revés que el fail-safe de `test_mode` (§8): allí la duda debe
 cortar un envío; aquí la duda no debe dejar al equipo sin poder trabajar.
@@ -1119,14 +1127,12 @@ POMA en producción real quedan pasos de configuración y negocio.
 
 1. **Sin linter y sin CI.** Ya hay dos comprobaciones automáticas (`tsc` y `scripts/comprobar-rls.ts`),
    pero ninguna se ejecuta sola ni hay tests de la interfaz.
-2. ~~**No hay roles**~~ — **resuelto a medias (2026-07-30)**: el modelo existe y las políticas están
-   desplegadas (§4bis), pero el interruptor `roles_activos` sigue apagado, así que **hoy el
-   comportamiento es todavía el de antes**: cualquier autenticado lo ve y lo puede todo. Queda
-   encenderlo (F4 del plan) y, con él, terminan de derogarse las políticas permisivas de
-   `20260722140000_crud_productores_entidades.sql` y
-   `20260724100000_rls_gestiona_canalizaciones_excedentes.sql`. Pendiente además: `tipo_receptor`
-   está en `null` en las entidades cuya `modalitat` no era concluyente, y sin él un receptor no ve
-   ninguna oferta.
+2. ~~**No hay roles**~~ — **resuelto (2026-07-30)**: modelo desplegado y **encendido** en producción
+   (§4bis), verificado con el arnés (48/49; el único rojo era un receptor comercial sin ninguna
+   oferta de `venda` publicada, que es el comportamiento correcto). Queda de deuda: `tipo_receptor`
+   sigue en `null` en 111 entidades y sin él un receptor no ve ninguna oferta —es triaje manual—, y
+   `usuario_roles` no tiene FK a `perfiles`, así que PostgREST no puede embeber los dos (la futura
+   pantalla «Equip» tendrá que cruzarlos en cliente).
 3. El intake avanza de paso aunque falle el envío: si la red falla, el productor no recibe la
    pregunta pero la sesión ya avanzó, y su siguiente mensaje se lee como respuesta al paso nuevo.
 4. `disponible_hasta`: el intake ahora lo **parsea** de la respuesta libre (`parseDisponibleFins`,
