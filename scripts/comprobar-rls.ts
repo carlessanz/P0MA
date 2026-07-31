@@ -22,7 +22,13 @@
 // último es una cuenta con ficha de productor Y de entidad (las crea
 // scripts/crear-usuarios-whatsapp.ts), que es lo que la interfaz enseña con los dos
 // menús a la vez: aquí se comprueba que ver dos paneles no es ver dos veces la base.
-// `pendent` cubre el REGISTRO PÚBLICO sin validar y hay que añadirlo a mano al fichero:
+//
+// ⚠️ Desde el 31-07-2026 NO HAY CUENTA para `sense_rol` ni para `pendent`: se retiraron
+// del juego de prueba junto con el grupo «Control» del login. Sus bloques se quedan aquí
+// —son la especificación, no sobran— pero nadie los recorre, así que el arnés pasó de 66
+// a 57 comprobaciones. Para volver a cubrirlos basta con dar de alta una organización por
+// el registro público (`/registre`), que produce exactamente el caso `pendent`, y añadir
+// su credencial abajo:
 //   { "etiqueta": "pendent", "email": "hola+pendent-registre@carlessanz.com",
 //     "password": "…", "rol": "pendent" }
 // Es la cuenta que crea scripts/crear-usuarios-prueba.ts con la membresía

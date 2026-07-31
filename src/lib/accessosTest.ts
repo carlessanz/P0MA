@@ -22,9 +22,10 @@
 export const accessosActius = import.meta.env.VITE_ACCESSOS_TEST === 'true'
 
 export interface AccesTest {
-  /** Qué prueba esta cuenta, para que se entienda el botón sin abrir la documentación. */
-  nom: string
-  organitzacio: string | null
+  /** Nombre de la organización: es lo que identifica el botón, así que va en grande. */
+  organitzacio: string
+  /** Qué es y qué puede hacer; va debajo, en pequeño. */
+  tipus: string
   email: string
   password: string
 }
@@ -48,11 +49,11 @@ export const GRUPS_ACCESSOS: GrupAccessos[] = [
     // excepción de cada una va en su propia etiqueta.
     titolKey: 'test.grp_wa',
     comptes: [
-      { nom: 'Productor + receptor social', organitzacio: 'Carles Sanz', email: 'hola+wa-carles@carlessanz.com', password: 'I4261-jWy0M-yefs7' },
-      { nom: 'Productor + receptor social', organitzacio: 'Sebas Sale', email: 'hola+wa-sebas@carlessanz.com', password: '4MQGu-aUxNb-6rV5s' },
-      { nom: 'Productor + receptor social', organitzacio: 'Raquel Diaz', email: 'hola+wa-raquel@carlessanz.com', password: 'uavod-gDiVJ-VqKT5' },
-      { nom: 'Només receptor social', organitzacio: 'Anna Garreta', email: 'hola+wa-anna@carlessanz.com', password: 'EYFOH-HT0qK-neQbS' },
-      { nom: 'Productor + receptor social · SENSE WhatsApp', organitzacio: 'Laura Masdeu', email: 'hola+wa-laura@carlessanz.com', password: 'zTfJ0-Yo9aG-doIjq' },
+      { organitzacio: 'Carles Sanz', tipus: 'Productor + receptor social', email: 'hola+wa-carles@carlessanz.com', password: 'I4261-jWy0M-yefs7' },
+      { organitzacio: 'Sebas Sale', tipus: 'Productor + receptor social', email: 'hola+wa-sebas@carlessanz.com', password: '4MQGu-aUxNb-6rV5s' },
+      { organitzacio: 'Raquel Diaz', tipus: 'Productor + receptor social', email: 'hola+wa-raquel@carlessanz.com', password: 'uavod-gDiVJ-VqKT5' },
+      { organitzacio: 'Anna Garreta', tipus: 'Només receptor social', email: 'hola+wa-anna@carlessanz.com', password: 'EYFOH-HT0qK-neQbS' },
+      { organitzacio: 'Laura Masdeu', tipus: 'Productor + receptor social · SENSE WhatsApp', email: 'hola+wa-laura@carlessanz.com', password: 'zTfJ0-Yo9aG-doIjq' },
     ],
   },
   // Un solo usuario por organización: el producto no tiene cargos dentro de la empresa,
@@ -60,24 +61,17 @@ export const GRUPS_ACCESSOS: GrupAccessos[] = [
   {
     titolKey: 'test.grp_prod',
     comptes: [
-      { nom: 'Productor', organitzacio: 'Mas de Prova SCP', email: 'hola+prodowner-masprova@carlessanz.com', password: 'PyaCL-ia5jD-E6Ba9' },
-      { nom: 'Productor', organitzacio: 'Horta de Prova SL', email: 'hola+prodowner-hortaprova@carlessanz.com', password: 'VUQPK-k4sLa-hSZWE' },
+      { organitzacio: 'Mas de Prova SCP', tipus: 'Productor', email: 'hola+prodowner-masprova@carlessanz.com', password: 'PyaCL-ia5jD-E6Ba9' },
+      { organitzacio: 'Horta de Prova SL', tipus: 'Productor', email: 'hola+prodowner-hortaprova@carlessanz.com', password: 'VUQPK-k4sLa-hSZWE' },
     ],
   },
   // Sin receptor de alimentación animal: esa línea de servicio no se usa todavía.
   {
     titolKey: 'test.grp_rec',
     comptes: [
-      { nom: 'Entitat social', organitzacio: 'Menjador Social de Prova', email: 'hola+recowner-social@carlessanz.com', password: 'UDBib-ABb7Y-eaqMg' },
-      { nom: 'Entitat de transformació', organitzacio: 'Obrador de Prova', email: 'hola+recowner-obrador@carlessanz.com', password: 'HKfYQ-Vq4MH-W6Aqz' },
-      { nom: 'Entitat comercial', organitzacio: 'Comercial de Prova SL', email: 'hola+recowner-comercial@carlessanz.com', password: 'FmJMZ-QJzC4-r7aYg' },
-    ],
-  },
-  {
-    titolKey: 'test.grp_ctrl',
-    comptes: [
-      { nom: 'Sense cap organització', organitzacio: null, email: 'hola+senserol@carlessanz.com', password: 'WBLAi-iD5CQ-QzMBo' },
-      { nom: 'Registre pendent de validar', organitzacio: 'Mas Pendent de Prova SCP', email: 'hola+pendent-registre@carlessanz.com', password: '2BLZ6-UYuqg-ayJ8g' },
+      { organitzacio: 'Menjador Social de Prova', tipus: 'Entitat social', email: 'hola+recowner-social@carlessanz.com', password: 'UDBib-ABb7Y-eaqMg' },
+      { organitzacio: 'Obrador de Prova', tipus: 'Entitat de transformació', email: 'hola+recowner-obrador@carlessanz.com', password: 'HKfYQ-Vq4MH-W6Aqz' },
+      { organitzacio: 'Comercial de Prova SL', tipus: 'Entitat comercial', email: 'hola+recowner-comercial@carlessanz.com', password: 'FmJMZ-QJzC4-r7aYg' },
     ],
   },
 ]

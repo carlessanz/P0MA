@@ -48,9 +48,9 @@ pago, plantillas— con el estado de preparación verificado el 24-07-2026, y su
 `WhatsApp producción (visual).html`), **`Costes de WhatsApp — POMA.md`** (modelo de costes: la
 ventana de 24 h es gratis, la plantilla se paga), **`Flujo de la aplicación POMA.md`** (el flujo
 end-to-end con diagramas Mermaid y los textos literales que se envían), **`Usuarios y accesos —
-POMA.md`** (las 3 cuentas reales del equipo con su rol y las **14 de prueba con su contraseña**, más
+POMA.md`** (las 3 cuentas reales del equipo con su rol y las **12 de prueba con su contraseña**, más
 cómo reenviar un acceso, cortar uno y recrear las cuentas) y **`usuarios-test.md`** (la tabla escueta
-de esas 14 cuentas, para tenerla a mano al probar). Los dos últimos **llevan credenciales en claro**:
+de esas 12 cuentas, para tenerla a mano al probar). Los dos últimos **llevan credenciales en claro**:
 que estén fuera de git no es un detalle, es el motivo de que existan ahí.
 
 ## 1bis. Visión funcional POMA 2026 (modelo objetivo ↔ lo construido)
@@ -271,7 +271,7 @@ scripts/
   crear-usuario.ts             Alta de cuentas por la Admin API (no envía correos)
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
-  crear-usuarios-prueba.ts     6 organizaciones ficticias TEST-* y 9 cuentas, idempotente (§9)
+  crear-usuarios-prueba.ts     5 organizaciones ficticias TEST-* y 7 cuentas, idempotente (§9)
   crear-usuarios-whatsapp.ts   5 cuentas de organización sobre las fichas REALES con móvil en
                                Meta; no crea ni toca ninguna ficha, solo enlaza (§9)
   roles-activos.ts             Interruptor del modelo de roles: on | off | estat (§4bis)
@@ -959,12 +959,20 @@ entrar; si la cuenta no tiene ese panel, `RoleGuard` la recoloca como siempre.
 ### Accesos directos a las cuentas de prueba
 
 `/login` muestra, bajo el formulario, un botón por cuenta de prueba agrupado en **Fitxes reals de
-l'equip** / Productors / Receptors / Control (`src/lib/accessosTest.ts` +
-`components/AccessosTest.tsx`): un clic abre sesión. El primer grupo va primero a propósito: es el
-único con el que se puede ejercitar el producto entero, porque son las únicas fichas con móvil
-verificado en Meta. Su título no dice «WhatsApp» ni «doble rol» porque **ninguna de las dos cosas es
-cierta para las cinco** —Anna Garreta solo tiene ficha de entidad, y Laura Masdeu no tiene
-teléfono—; la excepción de cada una va en su propia etiqueta.
+l'equip** / Productors / Receptors (`src/lib/accessosTest.ts` +
+`components/AccessosTest.tsx`): un clic abre sesión. Cada botón lleva **el nombre de la organización
+en grande y qué es debajo, en pequeño** —es el nombre lo que identifica la cuenta al elegir, no su
+tipo—.
+
+El primer grupo va primero a propósito: es el único con el que se puede ejercitar el producto entero,
+porque son las únicas fichas con móvil verificado en Meta. Su título no dice «WhatsApp» ni «doble
+rol» porque **ninguna de las dos cosas es cierta para las cinco** —Anna Garreta solo tiene ficha de
+entidad, y Laura Masdeu no tiene teléfono—; la excepción de cada una va en su propia etiqueta.
+
+**No hay grupo «Control».** La cuenta sin rol y la del registro pendiente se retiraron el 31-07-2026:
+son estados del sistema, no organizaciones con las que alguien quiera entrar a mirar, y ocupaban
+sitio en la puerta de acceso. El caso pendiente se reproduce dando de alta cualquier organización
+desde `/registre`.
 
 Dos límites que **no se pueden relajar**:
 
@@ -1283,32 +1291,35 @@ organización nace `es_test = false` y el gate de cuenta (§8) la bloquea. Deuda
 
 ### Usuarios de prueba
 
-`scripts/crear-usuarios-prueba.ts` crea **6 organizaciones ficticias** —2 productores (`TEST-PROD-1`,
-`TEST-PROD-2`), 3 receptores (`TEST-ENT-SOCIAL`, `TEST-ENT-OBRADOR` transformador,
-`TEST-ENT-COMERCIAL`) y `TEST-PROD-PENDENT`, todas `es_test`— y **9 cuentas**, con **un solo usuario
-por organización**. Ficticias a propósito: un fallo de permisos no expone entonces ninguna
+`scripts/crear-usuarios-prueba.ts` crea **5 organizaciones ficticias** —2 productores (`TEST-PROD-1`,
+`TEST-PROD-2`) y 3 receptores (`TEST-ENT-SOCIAL`, `TEST-ENT-OBRADOR` transformador,
+`TEST-ENT-COMERCIAL`), todas `es_test`— y **7 cuentas**: una por organización, más las 2 del equipo
+(`super_admin` y `tecnic`). Ficticias a propósito: un fallo de permisos no expone entonces ninguna
 organización real, y ningún botón manda un WhatsApp a un receptor de verdad. Sin teléfono
 (`productores.phone` es UNIQUE y los números del equipo ya están dados de alta): para WhatsApp están
 las cuentas de la sección siguiente.
 
-Además de las 5 de organización hay 2 del equipo (`super_admin`, `tecnic`), una de **control sin rol**
-—que debe ver «encara no tens panell», no un panel roto— y otra con la **membresía pendiente de
-validar**, que ejercita la pantalla de espera y la cola de Aprovacions.
+**El juego se recortó dos veces el 31-07-2026** (era 7 organizaciones y 13 cuentas):
 
-**El juego se recortó el 31-07-2026** (era 7 organizaciones y 13 cuentas): fuera los pares
-titular/operador, porque el producto **no tiene cargos dentro de la organización** —todos los
-usuarios de una empresa ven el mismo panel, y el registro público siempre crea `titular`—; y fuera el
-receptor de **alimentación animal**, porque esa línea de servicio no se usa todavía. Cada cuenta que
-sobra es una ficha más de ruido en los listados del equipo y en la priorización. `rol_org` sigue en
-el esquema (§4bis) pero de facto vale siempre `titular`: **ninguna cuenta ejercita ya el caso
-`operador`**, y `PerfilOrganitzacio` sigue condicionando el guardado a `rol_org === 'titular'`.
+1. Fuera los pares **titular/operador**, porque el producto **no tiene cargos dentro de la
+   organización**: todos los usuarios de una empresa ven el mismo panel, y el registro público
+   siempre crea `titular`. `rol_org` sigue en el esquema (§4bis) pero de facto vale siempre
+   `titular`, así que **ninguna cuenta ejercita ya el caso `operador`** —y `PerfilOrganitzacio` sigue
+   condicionando el guardado a `rol_org === 'titular'`, o sea que esa rama es código sin cobertura—.
+2. Fuera el receptor de **alimentación animal** (esa línea no se usa todavía) y las dos de
+   **control** —la cuenta sin rol y la del registro pendiente—, que salían en `/login` sin ser un
+   caso de uso.
 
-⚠️ El script es idempotente y reescribe las membresías, así que **reejecutarlo devuelve la cuenta
-pendiente a `pendent`** aunque se hubiera aprobado. Es un reset del escenario de prueba, no un fallo.
+Cada cuenta que sobra es una ficha más de ruido en los listados del equipo y en la priorización.
+
+⚠️ **Lo que costó el segundo recorte**: el arnés pierde los bloques `sense_rol` y `pendent` (pasa de
+66 a 57 comprobaciones) y ya no hay nada en la cola de «Registres pendents». Ambos se recuperan **sin
+tocar el fixture**: basta con dar de alta una organización desde `/registre`, que produce exactamente
+el caso pendiente, y añadir su credencial a `scripts/data/cuentas-prueba.json`.
 
 ### Cuentas para probar WhatsApp (31-07-2026)
 
-Ninguna de esas 13 puede usar WhatsApp: sus fichas nacen **sin teléfono** a propósito. Las únicas
+Ninguna de esas 7 puede usar WhatsApp: sus fichas nacen **sin teléfono** a propósito. Las únicas
 fichas con móvil verificado en Meta son las de **cinco personas del equipo de Espigoladors** (Carles
 Sanz, Sebas Sale, Raquel Diaz, Anna Garreta, Laura Masdeu), y tres de ellas solo tenían **cuenta de
 equipo** (`super_admin`/`admin`), que no puede ir a los accesos de `/login`.
@@ -1660,7 +1671,7 @@ POMA en producción real quedan pasos de configuración y negocio.
 
 1. `npm run build` en verde.
 2. `deno run -A scripts/comprobar-rls.ts` si el cambio toca datos, políticas o roles. Referencia
-   actual: **65/66** (el rojo conocido es un receptor comercial sin ninguna oferta de `venda`
+   actual: **56/57** (el rojo conocido es un receptor comercial sin ninguna oferta de `venda`
    publicada, que es el comportamiento correcto). Cualquier otro rojo es una regresión.
 3. **Actualizar este fichero** si cambió arquitectura, datos, contratos, convenciones,
    comandos o deuda técnica; y **§1bis + su tabla de correspondencia** si cambió el alcance

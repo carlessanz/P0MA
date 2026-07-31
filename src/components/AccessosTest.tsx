@@ -43,10 +43,8 @@ export default function AccessosTest() {
                 disabled={ocupat !== null}
                 onClick={() => void entrar(compte.email, compte.password)}
               >
-                <span className="font-medium">{compte.nom}</span>
-                <span className="text-xs font-normal text-muted-foreground">
-                  {compte.organitzacio ?? compte.email}
-                </span>
+                <span className="font-medium">{compte.organitzacio}</span>
+                <span className="text-xs font-normal text-muted-foreground">{compte.tipus}</span>
               </Button>
             ))}
           </div>

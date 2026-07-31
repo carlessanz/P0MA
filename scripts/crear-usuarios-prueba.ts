@@ -27,31 +27,6 @@
 // fichero. Para mandar el acceso por enlace mágico, usa la Edge Function
 // `enviar-acceso` (§9) desde el panel o con curl.
 //
-// ---------------------------------------------------------------------------
-// ESCENARIO «REGISTRO PÚBLICO PENDIENTE DE VALIDAR»
-// ---------------------------------------------------------------------------
-// La cuenta `hola+pendent-registre@carlessanz.com` (organización TEST-PROD-PENDENT)
-// nace con su membresía tal y como la deja la Edge Function pública `registro`:
-// `activo = false` y `aprovacio = 'pendent'`, a la espera de que el equipo la valide.
-// Sirve para probar la pantalla «pendent de validació» y la cola de aprobación.
-//
-//   · NO ve nada: `mis_productores()` / `mis_entidades()` filtran por `activo`, así
-//     que ni siquiera ve la ficha de su propia organización.
-//   · SÍ lee su fila de `membresias`: la política «membresias: meves» no filtra por
-//     `activo`, y esa fila es justo lo que la pantalla de espera necesita.
-//   · NO pasa `esCuentaPermitida` (§8) mientras siga pendiente —membresía inactiva y
-//     sin rol de plataforma—, así que con el modo test encendido no recibe ni el
-//     correo de acceso ni el de recuperación de contraseña. Es coherente: todavía no
-//     es usuaria de la plataforma.
-//   · Organización propia a propósito, no TEST-PROD-1/2: aprobarla en una prueba
-//     manual no debe regalar acceso a los datos de otra organización de prueba.
-//
-// ⚠️ REEJECUTAR EL SCRIPT DEVUELVE ESA CUENTA A `pendent`. Las membresías se
-// reescriben en cada pasada, así que si la has aprobado a mano desde el panel, la
-// siguiente ejecución la vuelve a dejar pendiente e inactiva. Es deliberado: volver a
-// ejecutarlo RESTABLECE el escenario de prueba. Las demás cuentas siguen naciendo
-// `activo = true` y, por el default de la columna, `aprovacio = 'aprovada'` (que no se
-// escribe aquí, para no pisar una decisión tomada desde el panel).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -100,9 +75,6 @@ const ORGS: Org[] = [
   { codigo: "TEST-ENT-SOCIAL", tipo: "entidad", nombre: "Menjador Social de Prova", poblacion: "Barcelona", area: "Barcelonès", tipoReceptor: "social", modalitat: "Donació", email: correo("recowner-social") },
   { codigo: "TEST-ENT-OBRADOR", tipo: "entidad", nombre: "Obrador de Prova", poblacion: "Sabadell", area: "Vallès Occidental", tipoReceptor: "transformador", modalitat: "Maquila", email: correo("recowner-obrador") },
   { codigo: "TEST-ENT-COMERCIAL", tipo: "entidad", nombre: "Comercial de Prova SL", poblacion: "Mercabarna", area: "Barcelonès", tipoReceptor: "comercial", modalitat: "Venda", email: correo("recowner-comercial") },
-  // Registro público a medio camino: la ficha existe (la crea la Edge Function
-  // `registro`), pero su única membresía está pendiente de validar. Ver la cabecera.
-  { codigo: "TEST-PROD-PENDENT", tipo: "productor", nombre: "Mas Pendent de Prova SCP", poblacion: "Sant Boi de Llobregat", area: "Baix Llobregat", email: correo("pendent-registre") },
 ];
 
 interface Cuenta {
@@ -111,12 +83,6 @@ interface Cuenta {
   /** Rol de plataforma; null = usuario externo (su acceso sale de la membresía). */
   rol: "super_admin" | "admin" | "tecnic" | null;
   org?: { codigo: string; rolOrg: "titular" };
-  /**
-   * Estado de la membresía. Sin valor se crea como siempre —`activo = true` y, por el
-   * default de la columna, `aprovacio = 'aprovada'`—; `pendent` la deja como la deja
-   * el registro público: `activo = false` + `aprovacio = 'pendent'` (ver cabecera).
-   */
-  estatMembresia?: "pendent";
   para: string;
 }
 
@@ -134,8 +100,6 @@ const CUENTAS: Cuenta[] = [
   { email: correo("recowner-social"), nombre: "Receptor Menjador Social", rol: null, org: { codigo: "TEST-ENT-SOCIAL", rolOrg: "titular" }, para: "Entidad social: mercado de donaciones, interés e histórico" },
   { email: correo("recowner-obrador"), nombre: "Receptor Obrador de Prova", rol: null, org: { codigo: "TEST-ENT-OBRADOR", rolOrg: "titular" }, para: "Transformador: maquila y preu mínim" },
   { email: correo("recowner-comercial"), nombre: "Receptor Comercial de Prova", rol: null, org: { codigo: "TEST-ENT-COMERCIAL", rolOrg: "titular" }, para: "Comercial: ve el preu y lo confirma al aceptar" },
-  { email: correo("senserol"), nombre: "Compte sense rol", rol: null, para: "Control: debe ver la pantalla «encara no tens panell», no un panel roto" },
-  { email: correo("pendent-registre"), nombre: "Titular Mas Pendent de Prova", rol: null, org: { codigo: "TEST-PROD-PENDENT", rolOrg: "titular" }, estatMembresia: "pendent", para: "Registro público sin validar: NO ve nada, solo la pantalla «pendent de validació»" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -149,9 +113,7 @@ function generarPassword(): string {
 
 /** Resumen de una línea de qué es la cuenta: sale en el listado y en las credenciales. */
 function etiquetaCuenta(cuenta: Cuenta): string {
-  return `${cuenta.rol ?? cuenta.org?.codigo ?? "sense rol"}` +
-    (cuenta.org ? ` · ${cuenta.org.rolOrg}` : "") +
-    (cuenta.estatMembresia === "pendent" ? " · membresía PENDENT de validar" : "");
+  return cuenta.rol ?? cuenta.org?.codigo ?? "sense rol";
 }
 
 /** Alta o actualización de una organización ficticia. Devuelve su id. */
@@ -273,34 +235,24 @@ for (const cuenta of CUENTAS) {
     const orgId = idsOrg.get(cuenta.org.codigo);
     const org = ORGS.find((o) => o.codigo === cuenta.org!.codigo)!;
     if (orgId) {
-      // Solo el escenario de registro público escribe el eje de aprobación. Las demás
-      // no lo tocan a propósito: en el alta lo pone el default (`aprovada`) y en las
-      // reejecuciones se respeta lo que haya decidido el equipo desde el panel.
-      const pendent = cuenta.estatMembresia === "pendent";
+      // No se escribe `aprovacio` a propósito: en el alta lo pone el default
+      // (`aprovada`) y en las reejecuciones se respeta lo que haya decidido el equipo
+      // desde el panel.
       const fila: Record<string, unknown> = {
         user_id: userId,
         tipo: org.tipo,
         productor_id: org.tipo === "productor" ? orgId : null,
         entidad_id: org.tipo === "entidad" ? orgId : null,
         rol_org: cuenta.org.rolOrg,
-        activo: !pendent,
+        activo: true,
       };
-      if (pendent) fila.aprovacio = "pendent";
       const columna = org.tipo === "productor" ? "productor_id" : "entidad_id";
       const { data: existent } = await admin.from("membresias")
         .select("id").eq("user_id", userId).eq(columna, orgId).maybeSingle();
       const { error } = existent
         ? await admin.from("membresias").update(fila).eq("id", existent.id)
         : await admin.from("membresias").insert(fila);
-      if (error) {
-        console.error(`  ! membresía ${cuenta.email}: ${error.message}`);
-        // El fallo confuso: la columna del eje de aprobación todavía no existe. Se
-        // avisa en vez de reintentar sin ella, que dejaría la cuenta ACTIVA —justo lo
-        // contrario del escenario que se quiere montar.
-        if (pendent && error.message.includes("aprovacio")) {
-          console.error("    ↳ falta aplicar la migración 20260731100000_registre_public.sql");
-        }
-      }
+      if (error) console.error(`  ! membresía ${cuenta.email}: ${error.message}`);
     }
   }
 
@@ -329,8 +281,6 @@ console.log(`
       -d '{"email":"${CUENTAS[0].email}","canal":"email"}'
 
   Recuerda: por WhatsApp va solo el código de 6 cifras, y solo llega a los números de
-  meta_test_recipients con la ventana de 24 h abierta (§8). La cuenta
-  ${correo("pendent-registre")} está PENDIENTE de validar: no ve nada y
-  no recibe ni acceso ni recuperación mientras el modo test esté encendido. Para el
-  arnés de RLS, añádela a scripts/data/cuentas-prueba.json con "rol": "pendent".
+  meta_test_recipients con la ventana de 24 h abierta (§8). Estas fichas no tienen
+  teléfono, así que su canal es el correo.
 `);

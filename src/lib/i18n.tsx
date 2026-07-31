@@ -96,7 +96,7 @@ const ca: Dict = {
   // accessos de prova (només amb VITE_ACCESSOS_TEST)
   'test.title': 'Usuaris de prova',
   'test.hint': 'Un clic i entres amb aquest compte. Només visible en entorns de prova.',
-  'test.grp_prod': 'Productors', 'test.grp_rec': 'Receptors', 'test.grp_ctrl': 'Control',
+  'test.grp_prod': 'Productors', 'test.grp_rec': 'Receptors',
   'test.grp_wa': "Fitxes reals de l'equip",
   // registre públic
   'reg.title': 'Registra’t a POMA',
@@ -407,7 +407,7 @@ const es: Dict = {
   'land.foot_by': 'Un proyecto de la Fundació Espigoladors', 'land.foot_web': 'espigoladors.cat',
   'test.title': 'Usuarios de prueba',
   'test.hint': 'Un clic y entras con esa cuenta. Solo visible en entornos de prueba.',
-  'test.grp_prod': 'Productores', 'test.grp_rec': 'Receptores', 'test.grp_ctrl': 'Control',
+  'test.grp_prod': 'Productores', 'test.grp_rec': 'Receptores',
   'test.grp_wa': 'Fichas reales del equipo',
   'reg.title': 'Regístrate en POMA',
   'reg.subtitle': 'Crea la cuenta de tu organización. El equipo de POMA validará el alta antes de activarla.',
