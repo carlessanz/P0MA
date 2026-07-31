@@ -48,30 +48,29 @@ export const GRUPS_ACCESSOS: GrupAccessos[] = [
     // excepción de cada una va en su propia etiqueta.
     titolKey: 'test.grp_wa',
     comptes: [
-      { nom: 'Productor + receptor · WhatsApp', organitzacio: 'Carles Sanz', email: 'hola+wa-carles@carlessanz.com', password: 'I4261-jWy0M-yefs7' },
-      { nom: 'Productor + receptor · WhatsApp', organitzacio: 'Sebas Sale', email: 'hola+wa-sebas@carlessanz.com', password: '4MQGu-aUxNb-6rV5s' },
-      { nom: 'Productor + receptor · WhatsApp', organitzacio: 'Raquel Diaz', email: 'hola+wa-raquel@carlessanz.com', password: 'uavod-gDiVJ-VqKT5' },
-      { nom: 'Només receptor · WhatsApp', organitzacio: 'Anna Garreta', email: 'hola+wa-anna@carlessanz.com', password: 'EYFOH-HT0qK-neQbS' },
-      { nom: 'Productor + receptor · SENSE WhatsApp', organitzacio: 'Laura Masdeu', email: 'hola+wa-laura@carlessanz.com', password: 'zTfJ0-Yo9aG-doIjq' },
+      { nom: 'Productor + receptor social', organitzacio: 'Carles Sanz', email: 'hola+wa-carles@carlessanz.com', password: 'I4261-jWy0M-yefs7' },
+      { nom: 'Productor + receptor social', organitzacio: 'Sebas Sale', email: 'hola+wa-sebas@carlessanz.com', password: '4MQGu-aUxNb-6rV5s' },
+      { nom: 'Productor + receptor social', organitzacio: 'Raquel Diaz', email: 'hola+wa-raquel@carlessanz.com', password: 'uavod-gDiVJ-VqKT5' },
+      { nom: 'Només receptor social', organitzacio: 'Anna Garreta', email: 'hola+wa-anna@carlessanz.com', password: 'EYFOH-HT0qK-neQbS' },
+      { nom: 'Productor + receptor social · SENSE WhatsApp', organitzacio: 'Laura Masdeu', email: 'hola+wa-laura@carlessanz.com', password: 'zTfJ0-Yo9aG-doIjq' },
     ],
   },
+  // Un solo usuario por organización: el producto no tiene cargos dentro de la empresa,
+  // todos sus usuarios ven el mismo panel. Había pares titular/operador y se retiraron.
   {
     titolKey: 'test.grp_prod',
     comptes: [
-      { nom: 'Titular', organitzacio: 'Mas de Prova SCP', email: 'hola+prodowner-masprova@carlessanz.com', password: 'PyaCL-ia5jD-E6Ba9' },
-      { nom: 'Operador', organitzacio: 'Mas de Prova SCP', email: 'hola+produser-masprova@carlessanz.com', password: 'kJUET-iyNyy-uLkWp' },
-      { nom: 'Titular', organitzacio: 'Horta de Prova SL', email: 'hola+prodowner-hortaprova@carlessanz.com', password: 'VUQPK-k4sLa-hSZWE' },
+      { nom: 'Productor', organitzacio: 'Mas de Prova SCP', email: 'hola+prodowner-masprova@carlessanz.com', password: 'PyaCL-ia5jD-E6Ba9' },
+      { nom: 'Productor', organitzacio: 'Horta de Prova SL', email: 'hola+prodowner-hortaprova@carlessanz.com', password: 'VUQPK-k4sLa-hSZWE' },
     ],
   },
+  // Sin receptor de alimentación animal: esa línea de servicio no se usa todavía.
   {
     titolKey: 'test.grp_rec',
     comptes: [
-      { nom: 'Titular · social', organitzacio: 'Menjador Social de Prova', email: 'hola+recowner-social@carlessanz.com', password: 'UDBib-ABb7Y-eaqMg' },
-      { nom: 'Operador · social', organitzacio: 'Menjador Social de Prova', email: 'hola+recuser-social@carlessanz.com', password: 'tDHRz-YnaCc-PzLV2' },
-      { nom: 'Titular · animal', organitzacio: 'Granja de Prova', email: 'hola+recowner-animal@carlessanz.com', password: 'ckDxL-FobSz-Q7xQd' },
-      { nom: 'Titular · transformador', organitzacio: 'Obrador de Prova', email: 'hola+recowner-obrador@carlessanz.com', password: 'HKfYQ-Vq4MH-W6Aqz' },
-      { nom: 'Titular · comercial', organitzacio: 'Comercial de Prova SL', email: 'hola+recowner-comercial@carlessanz.com', password: 'FmJMZ-QJzC4-r7aYg' },
-      { nom: 'Operador · comercial', organitzacio: 'Comercial de Prova SL', email: 'hola+recuser-comercial@carlessanz.com', password: '7UuCp-Fce3V-3dvCB' },
+      { nom: 'Entitat social', organitzacio: 'Menjador Social de Prova', email: 'hola+recowner-social@carlessanz.com', password: 'UDBib-ABb7Y-eaqMg' },
+      { nom: 'Entitat de transformació', organitzacio: 'Obrador de Prova', email: 'hola+recowner-obrador@carlessanz.com', password: 'HKfYQ-Vq4MH-W6Aqz' },
+      { nom: 'Entitat comercial', organitzacio: 'Comercial de Prova SL', email: 'hola+recowner-comercial@carlessanz.com', password: 'FmJMZ-QJzC4-r7aYg' },
     ],
   },
   {

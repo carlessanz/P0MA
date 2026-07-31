@@ -48,9 +48,9 @@ pago, plantillas— con el estado de preparación verificado el 24-07-2026, y su
 `WhatsApp producción (visual).html`), **`Costes de WhatsApp — POMA.md`** (modelo de costes: la
 ventana de 24 h es gratis, la plantilla se paga), **`Flujo de la aplicación POMA.md`** (el flujo
 end-to-end con diagramas Mermaid y los textos literales que se envían), **`Usuarios y accesos —
-POMA.md`** (las 3 cuentas reales del equipo con su rol y las **13 de prueba con su contraseña**, más
+POMA.md`** (las 3 cuentas reales del equipo con su rol y las **14 de prueba con su contraseña**, más
 cómo reenviar un acceso, cortar uno y recrear las cuentas) y **`usuarios-test.md`** (la tabla escueta
-de esas 13 cuentas, para tenerla a mano al probar). Los dos últimos **llevan credenciales en claro**:
+de esas 14 cuentas, para tenerla a mano al probar). Los dos últimos **llevan credenciales en claro**:
 que estén fuera de git no es un detalle, es el motivo de que existan ahí.
 
 ## 1bis. Visión funcional POMA 2026 (modelo objetivo ↔ lo construido)
@@ -271,7 +271,7 @@ scripts/
   crear-usuario.ts             Alta de cuentas por la Admin API (no envía correos)
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
-  crear-usuarios-prueba.ts     7 organizaciones ficticias TEST-* y 13 cuentas, idempotente (§9)
+  crear-usuarios-prueba.ts     6 organizaciones ficticias TEST-* y 9 cuentas, idempotente (§9)
   crear-usuarios-whatsapp.ts   5 cuentas de organización sobre las fichas REALES con móvil en
                                Meta; no crea ni toca ninguna ficha, solo enlaza (§9)
   roles-activos.ts             Interruptor del modelo de roles: on | off | estat (§4bis)
@@ -1283,14 +1283,25 @@ organización nace `es_test = false` y el gate de cuenta (§8) la bloquea. Deuda
 
 ### Usuarios de prueba
 
-`scripts/crear-usuarios-prueba.ts` crea **7 organizaciones ficticias** (`TEST-PROD-1`, `TEST-PROD-2`,
-`TEST-PROD-PENDENT`, `TEST-ENT-SOCIAL`, `TEST-ENT-ANIMAL`, `TEST-ENT-OBRADOR`, `TEST-ENT-COMERCIAL`,
-todas `es_test`) y **13 cuentas** con el patrón `hola+<rol>-<org>@carlessanz.com`, incluidas una de
-control sin rol, un segundo productor para comprobar que no se filtran datos entre organizaciones y
-—desde el 31-07-2026— una con la **membresía pendiente de validar**, que es la que ejercita la
-pantalla de espera y la cola de Aprovacions. Ficticias a propósito: un fallo de permisos no expone
-entonces ninguna organización real, y ningún botón manda un WhatsApp a un receptor de verdad. Sin
-teléfono por defecto (`productores.phone` es UNIQUE y los números del equipo ya están dados de alta).
+`scripts/crear-usuarios-prueba.ts` crea **6 organizaciones ficticias** —2 productores (`TEST-PROD-1`,
+`TEST-PROD-2`), 3 receptores (`TEST-ENT-SOCIAL`, `TEST-ENT-OBRADOR` transformador,
+`TEST-ENT-COMERCIAL`) y `TEST-PROD-PENDENT`, todas `es_test`— y **9 cuentas**, con **un solo usuario
+por organización**. Ficticias a propósito: un fallo de permisos no expone entonces ninguna
+organización real, y ningún botón manda un WhatsApp a un receptor de verdad. Sin teléfono
+(`productores.phone` es UNIQUE y los números del equipo ya están dados de alta): para WhatsApp están
+las cuentas de la sección siguiente.
+
+Además de las 5 de organización hay 2 del equipo (`super_admin`, `tecnic`), una de **control sin rol**
+—que debe ver «encara no tens panell», no un panel roto— y otra con la **membresía pendiente de
+validar**, que ejercita la pantalla de espera y la cola de Aprovacions.
+
+**El juego se recortó el 31-07-2026** (era 7 organizaciones y 13 cuentas): fuera los pares
+titular/operador, porque el producto **no tiene cargos dentro de la organización** —todos los
+usuarios de una empresa ven el mismo panel, y el registro público siempre crea `titular`—; y fuera el
+receptor de **alimentación animal**, porque esa línea de servicio no se usa todavía. Cada cuenta que
+sobra es una ficha más de ruido en los listados del equipo y en la priorización. `rol_org` sigue en
+el esquema (§4bis) pero de facto vale siempre `titular`: **ninguna cuenta ejercita ya el caso
+`operador`**, y `PerfilOrganitzacio` sigue condicionando el guardado a `rol_org === 'titular'`.
 
 ⚠️ El script es idempotente y reescribe las membresías, así que **reejecutarlo devuelve la cuenta
 pendiente a `pendent`** aunque se hubiera aprobado. Es un reset del escenario de prueba, no un fallo.

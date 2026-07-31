@@ -11,10 +11,17 @@
 // las fichas que crea llevan `codigo` con prefijo TEST- (que es la clave de
 // idempotencia) y `es_test = true`.
 //
-// SIN TELÉFONO por defecto: `productores.phone` es UNIQUE y los números reales del
-// equipo ya están dados de alta. Sin teléfono no hay envío accidental posible, y la UI
-// ya deshabilita el botón. Para probar WhatsApp, pon el número a mano en la ficha desde
-// el panel y asegúrate de que está en `meta_test_recipients`.
+// SIN TELÉFONO: `productores.phone` es UNIQUE y los números reales del equipo ya están
+// dados de alta. Sin teléfono no hay envío accidental posible. Para probar WhatsApp de
+// verdad están las cuentas de `scripts/crear-usuarios-whatsapp.ts`, que se apoyan en las
+// fichas reales con móvil verificado en Meta.
+//
+// EL JUEGO ES DELIBERADAMENTE PEQUEÑO (31-07-2026): 2 productores y 3 receptores —social,
+// transformador y comercial—, con UN usuario cada uno. Antes había pares
+// titular/operador y un cuarto receptor de alimentación animal. Los pares se fueron
+// porque el producto no tiene cargos dentro de la organización (todos sus usuarios ven el
+// mismo panel), y el receptor animal porque esa línea no se usa todavía: cada cuenta que
+// sobra es una ficha más de ruido en los listados del equipo y en la priorización.
 //
 // Las contraseñas se muestran UNA sola vez por pantalla y no se guardan en ningún
 // fichero. Para mandar el acceso por enlace mágico, usa la Edge Function
@@ -91,7 +98,6 @@ const ORGS: Org[] = [
   { codigo: "TEST-PROD-1", tipo: "productor", nombre: "Mas de Prova SCP", poblacion: "Gavà", area: "Baix Llobregat", email: correo("prodowner-masprova") },
   { codigo: "TEST-PROD-2", tipo: "productor", nombre: "Horta de Prova SL", poblacion: "Viladecans", area: "Baix Llobregat", email: correo("prodowner-hortaprova") },
   { codigo: "TEST-ENT-SOCIAL", tipo: "entidad", nombre: "Menjador Social de Prova", poblacion: "Barcelona", area: "Barcelonès", tipoReceptor: "social", modalitat: "Donació", email: correo("recowner-social") },
-  { codigo: "TEST-ENT-ANIMAL", tipo: "entidad", nombre: "Granja de Prova", poblacion: "Vic", area: "Osona", tipoReceptor: "animal", modalitat: "Altres", email: correo("recowner-animal") },
   { codigo: "TEST-ENT-OBRADOR", tipo: "entidad", nombre: "Obrador de Prova", poblacion: "Sabadell", area: "Vallès Occidental", tipoReceptor: "transformador", modalitat: "Maquila", email: correo("recowner-obrador") },
   { codigo: "TEST-ENT-COMERCIAL", tipo: "entidad", nombre: "Comercial de Prova SL", poblacion: "Mercabarna", area: "Barcelonès", tipoReceptor: "comercial", modalitat: "Venda", email: correo("recowner-comercial") },
   // Registro público a medio camino: la ficha existe (la crea la Edge Function
@@ -104,7 +110,7 @@ interface Cuenta {
   nombre: string;
   /** Rol de plataforma; null = usuario externo (su acceso sale de la membresía). */
   rol: "super_admin" | "admin" | "tecnic" | null;
-  org?: { codigo: string; rolOrg: "titular" | "operador" };
+  org?: { codigo: string; rolOrg: "titular" };
   /**
    * Estado de la membresía. Sin valor se crea como siempre —`activo = true` y, por el
    * default de la columna, `aprovacio = 'aprovada'`—; `pendent` la deja como la deja
@@ -114,18 +120,20 @@ interface Cuenta {
   para: string;
 }
 
+// UN SOLO USUARIO POR ORGANIZACIÓN. Antes había pares titular/operador para probar que
+// el segundo no podía editar la ficha; se retiraron el 31-07-2026 porque el producto no
+// tiene cargos dentro de la organización: todos los usuarios de una empresa ven el mismo
+// panel. `rol_org` sigue en el esquema, pero de facto siempre vale `titular` —también lo
+// que crea el registro público—, así que dos cuentas por organización no probaban nada
+// que no probara una.
 const CUENTAS: Cuenta[] = [
   { email: correo("superadmin"), nombre: "Super Admin POMA", rol: "super_admin", para: "Aprueba, canaliza y toca la configuración" },
   { email: correo("equip"), nombre: "Tècnic POMA", rol: "tecnic", para: "Opera el día a día; NO aprueba ni cambia el modo test" },
-  { email: correo("prodowner-masprova"), nombre: "Titular Mas de Prova", rol: null, org: { codigo: "TEST-PROD-1", rolOrg: "titular" }, para: "Publica ofertas y edita la ficha de su organización" },
-  { email: correo("produser-masprova"), nombre: "Operador Mas de Prova", rol: null, org: { codigo: "TEST-PROD-1", rolOrg: "operador" }, para: "Publica ofertas pero NO edita la ficha" },
-  { email: correo("prodowner-hortaprova"), nombre: "Titular Horta de Prova", rol: null, org: { codigo: "TEST-PROD-2", rolOrg: "titular" }, para: "Control de fuga: no debe ver nada de TEST-PROD-1" },
-  { email: correo("recowner-social"), nombre: "Titular Menjador Social", rol: null, org: { codigo: "TEST-ENT-SOCIAL", rolOrg: "titular" }, para: "Mercado de donaciones, interés e histórico" },
-  { email: correo("recuser-social"), nombre: "Voluntari Menjador Social", rol: null, org: { codigo: "TEST-ENT-SOCIAL", rolOrg: "operador" }, para: "Ve y muestra interés; NO edita la ficha" },
-  { email: correo("recowner-animal"), nombre: "Titular Granja de Prova", rol: null, org: { codigo: "TEST-ENT-ANIMAL", rolOrg: "titular" }, para: "Mercado filtrado a alimentación animal" },
-  { email: correo("recowner-obrador"), nombre: "Titular Obrador de Prova", rol: null, org: { codigo: "TEST-ENT-OBRADOR", rolOrg: "titular" }, para: "Maquila y preu mínim" },
-  { email: correo("recowner-comercial"), nombre: "Titular Comercial de Prova", rol: null, org: { codigo: "TEST-ENT-COMERCIAL", rolOrg: "titular" }, para: "Venda: ve el preu y lo confirma al aceptar" },
-  { email: correo("recuser-comercial"), nombre: "Operador Comercial de Prova", rol: null, org: { codigo: "TEST-ENT-COMERCIAL", rolOrg: "operador" }, para: "Segundo no-titular" },
+  { email: correo("prodowner-masprova"), nombre: "Productor Mas de Prova", rol: null, org: { codigo: "TEST-PROD-1", rolOrg: "titular" }, para: "Publica ofertas y edita la ficha de su organización" },
+  { email: correo("prodowner-hortaprova"), nombre: "Productor Horta de Prova", rol: null, org: { codigo: "TEST-PROD-2", rolOrg: "titular" }, para: "Control de fuga: no debe ver nada de TEST-PROD-1" },
+  { email: correo("recowner-social"), nombre: "Receptor Menjador Social", rol: null, org: { codigo: "TEST-ENT-SOCIAL", rolOrg: "titular" }, para: "Entidad social: mercado de donaciones, interés e histórico" },
+  { email: correo("recowner-obrador"), nombre: "Receptor Obrador de Prova", rol: null, org: { codigo: "TEST-ENT-OBRADOR", rolOrg: "titular" }, para: "Transformador: maquila y preu mínim" },
+  { email: correo("recowner-comercial"), nombre: "Receptor Comercial de Prova", rol: null, org: { codigo: "TEST-ENT-COMERCIAL", rolOrg: "titular" }, para: "Comercial: ve el preu y lo confirma al aceptar" },
   { email: correo("senserol"), nombre: "Compte sense rol", rol: null, para: "Control: debe ver la pantalla «encara no tens panell», no un panel roto" },
   { email: correo("pendent-registre"), nombre: "Titular Mas Pendent de Prova", rol: null, org: { codigo: "TEST-PROD-PENDENT", rolOrg: "titular" }, estatMembresia: "pendent", para: "Registro público sin validar: NO ve nada, solo la pantalla «pendent de validació»" },
 ];
