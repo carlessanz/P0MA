@@ -3,10 +3,14 @@
 // ⚠️ ESTO SON CREDENCIALES EN CLARO EN EL CÓDIGO DEL CLIENTE. Se acepta a propósito y con
 // dos límites que no se pueden relajar:
 //
-//   1. Solo cuentas de las organizaciones FICTICIAS `TEST-*`. Ninguna cuenta con rol de
-//      equipo (`usuario_roles`) puede aparecer aquí: esas ven las 452 fichas reales, con
-//      nombre, NIF, teléfono y dirección de gente que existe. El acceso del equipo es
-//      /admin, con contraseña y sin atajos.
+//   1. NINGUNA cuenta con rol de plataforma (`usuario_roles`). Esas ven las 452 fichas
+//      reales, con nombre, NIF, teléfono y dirección de gente que existe; el acceso del
+//      equipo es /admin, con contraseña y sin atajos.
+//      La mayoría son además organizaciones FICTICIAS `TEST-*`, pero el grupo de WhatsApp
+//      no puede serlo: los únicos móviles verificados en Meta están en fichas de personas
+//      reales del equipo. Esas cuentas son externas y creadas aparte
+//      (`scripts/crear-usuarios-whatsapp.ts`), así que cada una ve solo su propia ficha —
+//      contacto profesional del equipo, no de los 345 productores externos.
 //   2. Todo el bloque va detrás de `VITE_ACCESSOS_TEST`. Con la variable apagada, Vite
 //      sustituye la constante por `false`, el `&&` de LoginUsuaris queda en código muerto
 //      y este módulo se cae del bundle al hacer tree-shaking. Hay que comprobarlo con un
