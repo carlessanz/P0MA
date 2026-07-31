@@ -299,7 +299,16 @@ export default function OfferDetail({ excedente, onBack }: Props) {
     if (data?.code === 'no_test_user') avisar(toast.error, t('od.not_test_toast', { name: ent.nombre }))
     else if (data?.code === 'no_test_recipient') avisar(toast.error, t('od.no_test_meta', { name: ent.nombre }))
     else if (data?.code === 'unknown_contact') avisar(toast.error, t('od.must_write', { name: ent.nombre }))
-    else avisar(toast.error, t('od.no_send_wa'))
+    else {
+      // Sin código propio = no es una regla nuestra, es Meta rechazando. Se avisa
+      // AUNQUE haya fallback: el 31-07-2026 el token caducó y todos los envíos
+      // fallaban, y callarlo porque «ya se manda por correo» dejaría el canal
+      // caído sin que nadie se entere. Los motivos esperables (ventana, opt-in)
+      // sí se callan; una avería de plataforma, no.
+      const meta = (r.data as { error?: { code?: number; message?: string } } | null)?.error
+      toast.error(t('od.wa_broken', { detail: meta?.message?.slice(0, 90) ?? `HTTP ${r.status}` }),
+        { duration: 10000 })
+    }
     return false
   }
 

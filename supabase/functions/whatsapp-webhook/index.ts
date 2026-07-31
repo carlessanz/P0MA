@@ -85,6 +85,21 @@ Deno.serve(async (req) => {
       for (const change of entry.changes ?? []) {
         const value = change.value ?? {};
 
+        // El número POR EL QUE Meta nos entrega el mensaje. Es el mismo `phone_id`
+        // con el que enviamos, así que si difiere del secreto WHATSAPP_PHONE_ID,
+        // ese desajuste explica por sí solo que se reciba pero no se pueda enviar.
+        // Se guarda en `raw._metadata` porque el 31-07-2026 se descartaba y hubo
+        // que ir a preguntárselo a la Graph API para descartar esa hipótesis.
+        const metadata = value.metadata ?? null;
+        const phoneIdEntrega: string | null = metadata?.phone_number_id ?? null;
+        const phoneIdPropio = Deno.env.get("WHATSAPP_PHONE_ID");
+        if (phoneIdEntrega && phoneIdPropio && phoneIdEntrega !== phoneIdPropio) {
+          console.error(
+            `[webhook] phone_number_id distinto: Meta entrega por ${phoneIdEntrega} ` +
+              `pero enviamos por ${phoneIdPropio}. Actualiza el secreto WHATSAPP_PHONE_ID.`,
+          );
+        }
+
         // Mensajes entrantes
         for (const message of value.messages ?? []) {
           const from: string = message.from;
@@ -111,7 +126,9 @@ Deno.serve(async (req) => {
               type: message.type ?? null,
               body: cuerpo,
               status: "received",
-              raw: message,
+              // `_metadata` con guion bajo para no confundirlo con los campos que
+              // Meta pone dentro del propio `message`.
+              raw: metadata ? { ...message, _metadata: metadata } : message,
             },
             { onConflict: "wa_message_id", ignoreDuplicates: true },
           );

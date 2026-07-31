@@ -140,6 +140,7 @@ const ca: Dict = {
   'od.canal_why_sense_correu': 'sense correu a la fitxa',
   'od.canal_why_sense_canal': 'ni telèfon útil ni correu',
   'od.no_channel': '{name} no té cap canal: afegeix-hi un mòbil o un correu a la fitxa.',
+  'od.wa_broken': 'WhatsApp no funciona ara mateix: {detail}. Comprova el token de Meta (scripts/diagnostico-whatsapp.ts).',
   'od.fallback_email': 'WhatsApp no ha sortit amb {name}: s’envia per correu.',
   // Textos del correu d'oferta (el maqueta el servidor; aquí només el contingut)
   'od.email_title': 'Nova oferta d’excedent disponible',
@@ -373,6 +374,7 @@ const es: Dict = {
   'od.canal_why_sense_correu': 'sin correo en la ficha',
   'od.canal_why_sense_canal': 'ni teléfono útil ni correo',
   'od.no_channel': '{name} no tiene ningún canal: añade un móvil o un correo a su ficha.',
+  'od.wa_broken': 'WhatsApp no funciona ahora mismo: {detail}. Comprueba el token de Meta (scripts/diagnostico-whatsapp.ts).',
   'od.fallback_email': 'WhatsApp no salió con {name}: se envía por correo.',
   // Textos del correo de oferta (lo maqueta el servidor; aquí solo el contenido)
   'od.email_title': 'Nueva oferta de excedente disponible',
