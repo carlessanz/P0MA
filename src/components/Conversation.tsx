@@ -205,18 +205,28 @@ export default function Conversation({ contact, onBack, onDeleted }: Props) {
         {!loading && !loadError && messages.length === 0 && (
           <p className="text-sm text-muted-foreground">{t('msg.no_messages')}</p>
         )}
-        {messages.map((m) => (
-          <div key={m.id} className={cn('flex', m.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
-            <div className={cn('max-w-[70%] rounded-2xl px-3 py-2 text-sm shadow-sm',
-              m.direction === 'outbound' ? 'rounded-br-sm bg-secondary text-secondary-foreground' : 'rounded-bl-sm bg-card')}>
-              <p className="whitespace-pre-wrap break-words">{m.body ?? <em>[{m.type ?? '—'}]</em>}</p>
-              <span className="mt-1 block text-right text-[0.65rem] text-muted-foreground">
-                {formatTime(m.created_at)}
-                {m.direction === 'outbound' && m.status && <> · {m.status}</>}
-              </span>
+        {messages.map((m) => {
+          // Un envío que Meta rechazó se marca en rojo y con etiqueta propia: si se
+          // pintara como un saliente normal, parecería entregado y nadie sabría que
+          // el destinatario no ha recibido nada (§8ter).
+          const fallido = m.direction === 'outbound' && m.status === 'error'
+          return (
+            <div key={m.id} className={cn('flex', m.direction === 'outbound' ? 'justify-end' : 'justify-start')}>
+              <div className={cn('max-w-[70%] rounded-2xl px-3 py-2 text-sm shadow-sm',
+                fallido ? 'rounded-br-sm border border-destructive/40 bg-destructive/10 text-destructive'
+                  : m.direction === 'outbound' ? 'rounded-br-sm bg-secondary text-secondary-foreground'
+                  : 'rounded-bl-sm bg-card')}>
+                <p className="whitespace-pre-wrap wrap-break-word">{m.body ?? <em>[{m.type ?? '—'}]</em>}</p>
+                <span className={cn('mt-1 block text-right text-[0.65rem]',
+                  fallido ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                  {formatTime(m.created_at)}
+                  {fallido ? <> · {t('msg.not_delivered')}</>
+                    : m.direction === 'outbound' && m.status && <> · {m.status}</>}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         <div ref={bottomRef} />
       </div>
 

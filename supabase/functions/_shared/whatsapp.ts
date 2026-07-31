@@ -108,6 +108,42 @@ export async function registrarSaliente(
   if (error) console.error("registrarSaliente:", error.message);
 }
 
+/**
+ * Deja constancia de un envío que Meta RECHAZÓ.
+ *
+ * Hasta el 31-07-2026 un fallo de Meta no dejaba ningún rastro: los `sendX` solo
+ * registraban `if (r.ok)`. El día que Meta empezó a rechazar los envíos, en la
+ * consola no se veía nada — ni un mensaje, ni un aviso—, así que desde el panel
+ * era indistinguible de "no ha pasado nada", y el equipo no tenía forma de saber
+ * que había un problema ni cuál. Ahora la fila aparece en el hilo con
+ * `status='error'` y el motivo de Meta en `raw`.
+ *
+ * El `wa_message_id` es sintético (`err-…`) porque Meta no devuelve wamid cuando
+ * rechaza, y la columna es UNIQUE: sin un valor propio, dos fallos chocarían.
+ */
+export async function registrarFallo(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  to: string,
+  tipo: string,
+  body: string | null,
+  r: RespuestaMeta,
+): Promise<void> {
+  // deno-lint-ignore no-explicit-any
+  const err = (r.data as any)?.error ?? {};
+  const motivo = err.message ?? `HTTP ${r.status}`;
+  const { error } = await supabase.from("wa_messages").insert({
+    wa_message_id: `err-${crypto.randomUUID()}`,
+    contact_phone: to,
+    direction: "outbound",
+    type: tipo,
+    body,
+    status: "error",
+    raw: { error: err, http_status: r.status, motivo },
+  });
+  if (error) console.error("registrarFallo:", error.message);
+}
+
 export async function sendText(
   // deno-lint-ignore no-explicit-any
   supabase: any,
@@ -121,10 +157,9 @@ export async function sendText(
   opciones?: { bodyConsola?: string },
 ): Promise<RespuestaMeta> {
   const r = await enviar({ to, type: "text", text: { body, preview_url: false } });
-  if (r.ok) {
-    await registrarSaliente(
-      supabase, to, "text", opciones?.bodyConsola ?? body, r.waMessageId, r.data);
-  }
+  const cuerpo = opciones?.bodyConsola ?? body;
+  if (r.ok) await registrarSaliente(supabase, to, "text", cuerpo, r.waMessageId, r.data);
+  else await registrarFallo(supabase, to, "text", cuerpo, r);
   return r;
 }
 
@@ -150,6 +185,7 @@ export async function sendTemplate(
   });
   const bodyConsola = TEXTO_PLANTILLA[nombre] ?? `[plantilla: ${nombre}]`;
   if (r.ok) await registrarSaliente(supabase, to, "template", bodyConsola, r.waMessageId, r.data);
+  else await registrarFallo(supabase, to, "template", bodyConsola, r);
   return r;
 }
 
@@ -177,6 +213,7 @@ export async function sendBotones(
     },
   });
   if (r.ok) await registrarSaliente(supabase, to, "interactive", texto, r.waMessageId);
+  else await registrarFallo(supabase, to, "interactive", texto, r);
   return r;
 }
 
@@ -210,5 +247,6 @@ export async function sendLista(
     },
   });
   if (r.ok) await registrarSaliente(supabase, to, "interactive", texto, r.waMessageId);
+  else await registrarFallo(supabase, to, "interactive", texto, r);
   return r;
 }
