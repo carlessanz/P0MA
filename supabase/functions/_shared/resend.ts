@@ -18,7 +18,7 @@ const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "POMA <onboarding@resend.dev>
 // El logo tiene que ser una URL absoluta y pública: los clientes de correo no
 // resuelven rutas relativas, no cargan `data:` (Gmail lo bloquea) y no saben
 // pintar SVG. `public/logo-email.png` es el wordmark rasterizado a 378×96.
-const APP_URL = (Deno.env.get("APP_URL") ?? "https://pdapp-wp.carlessanz.com")
+const APP_URL = (Deno.env.get("APP_URL") ?? "https://p0ma.carlessanz.com")
   .replace(/\/+$/, "");
 const LOGO_URL = `${APP_URL}/logo-email.png`;
 

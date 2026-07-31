@@ -157,7 +157,7 @@ urgente, porque desbloquea el resto, es el **modelo de roles**.
 | Email | **Resend** (API HTTP, vía Edge Function `enviar-email`) |
 | BD | Postgres (Supabase) con RLS |
 | Scripts | Deno 2.x (`scripts/import-ara.ts`) |
-| Hosting frontend | Vercel (proyecto `pdapp-wp`) |
+| Hosting frontend | Vercel (proyecto `p0ma`) |
 
 **Con router** (`react-router` v7, desde 2026-07-30: los paneles por rol necesitan URL propia,
 enlace profundo y gesto «atrás»; el `useState<View>` anterior no daba ninguna de las tres) y sin
@@ -1137,8 +1137,8 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
   otro valor = simula (`status='simulat'`)
 - `ALLOWED_ORIGIN` — admite **varios orígenes separados por comas** y `*` como comodín
   dentro de un origen, porque los despliegues de Vercel no tienen URL estable. Valor actual:
-  `http://localhost:5173,https://pdapp-wp.carlessanz.com,https://pdapp-*-carlessanz-projects.vercel.app`.
-  **La app en producción se sirve desde el dominio propio `https://pdapp-wp.carlessanz.com`**, que
+  `http://localhost:5173,https://p0ma.carlessanz.com,https://p0ma-*-carlessanz-projects.vercel.app`.
+  **La app en producción se sirve desde el dominio propio `https://p0ma.carlessanz.com`**, que
   hubo que añadir aquí (si no, el navegador bloquea por CORS todas las llamadas a las Edge
   Functions). Si se cambia/añade dominio, actualizar este secret.
 - `RECORDATORIOS_SECRET` — secreto compartido que valida `intake-recordatorios`; el **mismo**
@@ -1149,12 +1149,12 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
   `POMA <no-reply@espigoladors.com>`. Ausente = usa `onboarding@resend.dev`, que solo entrega al
   correo owner de la cuenta.
 - `APP_URL` — URL de la app para el `redirectTo` del reset (dominio propio
-  `https://pdapp-wp.carlessanz.com`); debe estar en la allow-list de Auth (`uri_allow_list`).
+  `https://p0ma.carlessanz.com`); debe estar en la allow-list de Auth (`uri_allow_list`).
 - `SB_SECRET_KEY` (`sb_secret_...`)
 - `SUPABASE_URL` (la inyecta Supabase automáticamente)
 
 **Redirect URLs de Auth** (Management API, no config push): `site_url` = APP_URL y `uri_allow_list`
-incluye `localhost:5173`, la URL de producción y el comodín `https://pdapp-*-carlessanz-projects.vercel.app/**`.
+incluye `localhost:5173`, la URL de producción y el comodín `https://p0ma-*-carlessanz-projects.vercel.app/**`.
 
 **Scripts**: `SUPABASE_URL` y `SB_SECRET_KEY` en el entorno.
 
