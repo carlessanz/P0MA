@@ -42,15 +42,16 @@ que lo construido) vive en `docs/Documento funcional POMA 2026.md` y su **versi�
 estado real** en `docs/Documento funcional POMA 2026 — adaptado.md` (ambos fuera de git); su
 resumen y la correspondencia objetivo↔construido están en **§1bis**.
 
-`docs/` guarda además cinco documentos operativos (también fuera de git): **`Guía producción
+`docs/` guarda además seis documentos operativos (también fuera de git): **`Guía producción
 WhatsApp — POMA.md`** (los pasos en Meta del checkpoint §12.2 —número de producción, verificación,
 pago, plantillas— con el estado de preparación verificado el 24-07-2026, y su versión visual
 `WhatsApp producción (visual).html`), **`Costes de WhatsApp — POMA.md`** (modelo de costes: la
 ventana de 24 h es gratis, la plantilla se paga), **`Flujo de la aplicación POMA.md`** (el flujo
-end-to-end con diagramas Mermaid y los textos literales que se envían) y **`Usuarios y accesos —
-POMA.md`** (las 3 cuentas reales del equipo con su rol y las **12 de prueba con su contraseña**, más
-cómo reenviar un acceso, cortar uno y recrear las cuentas). Este último **lleva credenciales en
-claro**: que esté fuera de git no es un detalle, es el motivo de que exista ahí.
+end-to-end con diagramas Mermaid y los textos literales que se envían), **`Usuarios y accesos —
+POMA.md`** (las 3 cuentas reales del equipo con su rol y las **13 de prueba con su contraseña**, más
+cómo reenviar un acceso, cortar uno y recrear las cuentas) y **`usuarios-test.md`** (la tabla escueta
+de esas 13 cuentas, para tenerla a mano al probar). Los dos últimos **llevan credenciales en claro**:
+que estén fuera de git no es un detalle, es el motivo de que existan ahí.
 
 ## 1bis. Visión funcional POMA 2026 (modelo objetivo ↔ lo construido)
 
@@ -130,9 +131,10 @@ derivacion_espigueo, historial_estado, webhook_log y catálogos.
 | `historial_estado` | — | ⬜ |
 | `webhook_log` | `wa_messages.raw` (jsonb) | 🟡 |
 | catálogos (categorías/unidades/motivos/destinos) | `productos`/`causas`/`factores_conversion` | 🟡 |
-| back office, cola de **aprobaciones**, Super Admin | — (cualquier `authenticated` publica/edita) | ⬜ |
+| back office, cola de **aprobaciones**, Super Admin | `Aprovacions` con **dos colas**: respuestas a ofertas y **registros pendientes**; aprobar exige `pot_aprovar()` | 🟡 |
+| **alta de organización** (onboarding) | **registro público self-service** (`/registre` → Edge Function `registro`) con validación del equipo (§9) | 🟡 |
 | **roles y permisos** | RLS por rol y organización, encendida en producción (§4bis) | ✅ |
-| parte pública / catálogo público | — (todo tras `AuthGate`) | ⬜ |
+| parte pública / catálogo público | **landing pública** en `/` + `/login`, `/admin` y `/registre` (§6quater). Catálogo público de ofertas, no | 🟡 |
 | **modelo asistido** | de facto: el equipo opera todo desde el panel | 🟡 |
 | multiidioma `ca`/`es` | i18n propio (`src/lib/i18n.tsx`) | ✅ |
 | móvil primero / responsive | responsive `md`, mensajería lista↔conversación | ✅ |
@@ -140,12 +142,15 @@ derivacion_espigueo, historial_estado, webhook_log y catálogos.
 | valor económico | `valor_eur = kg × eur_kg` (plano 1 €/kg) | 🟡 |
 | vistas/indicadores (`v_kpi_subvencion`…) | `Dashboard` agrega en cliente | 🟡 |
 
-**Brechas mayores pendientes** (orden aproximado de dependencia): (1) **roles y permisos** → (2)
-organización unificada multirol + `usuario` → (3) **back office** con aprobaciones/convenios/
-verificación → (4) onboarding + convenio → (5) demandas → (6) albaranes/conciliación real →
-**certificados** → (7) notificaciones + encuestas → (8) adjuntos de WhatsApp → (9) diagnóstico/planes
-→ (10) espigueo, parte pública, calendario y mapa → (11) vistas SQL + `historial_estado`. La más
-urgente, porque desbloquea el resto, es el **modelo de roles**.
+**Brechas mayores pendientes** (orden aproximado de dependencia): ~~(1) roles y permisos~~ **resuelta**
+(§4bis) → (2) organización unificada multirol + `usuario` → (3) back office 🟡 (ya hay cola de
+aprobaciones y validación de altas; faltan convenios y verificación) → (4) onboarding 🟡 (ya hay alta
+self-service validada; falta el **convenio** y avisar por correo de la validación) → (5) demandas →
+(6) albaranes/conciliación real → **certificados** → (7) notificaciones + encuestas → (8) adjuntos de
+WhatsApp → (9) diagnóstico/planes → (10) espigueo, catálogo público, calendario y mapa → (11) vistas
+SQL + `historial_estado`. La más urgente ahora es la **organización unificada multirol**: mientras
+`productores` y `entidades` sean dos tablas sin clave común, el registro público no puede detectar
+que una organización ya existe (deuda §12.28).
 
 ## 2. Stack
 
@@ -161,7 +166,8 @@ urgente, porque desbloquea el resto, es el **modelo de roles**.
 
 **Con router** (`react-router` v7, desde 2026-07-30: los paneles por rol necesitan URL propia,
 enlace profundo y gesto «atrás»; el `useState<View>` anterior no daba ninguna de las tres) y sin
-librería de estado. `vercel.json` añade el *rewrite* de SPA: sin él, recargar cualquier ruta que no
+librería de estado. Desde el 31-07-2026 el router es además la **capa raíz**, con rutas públicas y
+privadas (§6quater): ya no hay un `AuthGate` envolviéndolo todo. `vercel.json` añade el *rewrite* de SPA: sin él, recargar cualquier ruta que no
 sea `/` devuelve 404 en producción. **UI con Tailwind v4 + shadcn/ui**: componentes en
 `src/components/ui/` (generados con el CLI de shadcn, `components.json`), tokens del **tema POMA**
 en `src/index.css` (navy `#234C66` / crema `#E0EBC7` / coral `#EE7A5F`, fuente Space Grotesk),
@@ -186,7 +192,8 @@ manifest—, `viewport-fit=cover` para que `env(safe-area-inset-*)` valga algo e
 `/index.html` y `/sw.js` (`vercel.json`): un service worker mal desplegado se queda pegado en los
 dispositivos, y esto hace que una recarga baste para coger la versión nueva. ⚠️ **Nada de Supabase
 se cachea** (`NetworkOnly` para `*.supabase.co`, y `/functions/`, `/rest/` y `/auth/` fuera del
-`navigateFallback`): la app es 100 % autenticada y con datos personales, y cachear una respuesta de
+`navigateFallback`): los datos siguen siendo 100 % autenticados y personales —lo público (§6quater)
+es solo el shell estático—, y cachear una respuesta de
 PostgREST en un móvil compartido podría servírsela a la siguiente persona. Para retirar el service
 worker de los dispositivos, desplegar una vez con `selfDestroying: true`.
 
@@ -205,15 +212,19 @@ vercel.json                    Rewrite de SPA (sin él, recargar una ruta profun
 .env.local.example             Plantilla de variables del frontend (sí se versiona)
 src/
   main.tsx                     Punto de entrada React
-  App.tsx                      Tres capas: AuthGate → AppContextProvider → RouterProvider
-  router/index.tsx             Mapa de rutas por rol (/equip, /productor, /receptor)
+  App.tsx                      Dos capas: SessioProvider → RouterProvider (el contexto de rol
+                               se monta más abajo, dentro de RequireSessio; §6quater)
+  router/index.tsx             Mapa de rutas: públicas + privadas por rol (§6quater)
   layout/AppShell.tsx          Sidebar + barra superior + contenido + barra inferior (§2)
   layout/AppSidebar.tsx        Menú lateral plegable y conmutador de panel
   layout/BottomNav.tsx         Barra inferior de móvil (productor y receptor)
   layout/UserMenu.tsx          Avatar, idioma y salir
+  hooks/useSessio.tsx          Sesión cruda (¿hay token?) + evento PASSWORD_RECOVERY (§6quater)
   hooks/useAppContext.tsx      get_my_session_context(): quién eres y qué panel ves (§4bis)
   hooks/use-mobile.ts          Hook del breakpoint (lo usa el sidebar de shadcn)
-  routes/Comuns.tsx            Raíz por rol, RoleGuard y pantalla «sense accés»
+  routes/Comuns.tsx            ArrelApp, RequireSessio, raíz por rol, RoleGuard y «sense accés»
+  routes/public/               Landing, LoginUsuaris (/login), LoginEquip (/admin),
+                               Registre (/registre) y RestablirClau (/restablir) — §6quater
   routes/PerfilOrganitzacio.tsx  Ficha propia, escrita por RPC con lista blanca
   routes/equip/                Envoltorios de las pantallas que ya existían + Aprovacions
   routes/productor/            Inicio, listado, alta de oferta y detalle
@@ -236,11 +247,15 @@ src/
     settings.ts                getTestMode()/setTestMode(): modo test global (app_settings, §8)
     email.ts                   enviarEmail(): llama a la Edge Function enviar-email
     i18n.tsx                   Sistema de traducciones (ca/es, per defecte ca; useT, §7)
+    accessosTest.ts            Credenciales de las cuentas de prueba para /login (§6quater)
     utils.ts                   cn() (shadcn)
     crudCampos.ts              Definiciones de campos para el CRUD (claves i18n f.*)
     textos.ts                  RECOLLIDA CONFIRMADA y albarán (los compone el panel)
   components/
-    AuthGate.tsx               Login real con Supabase Auth (ver §9)
+    LayoutAcces.tsx            Marco navy de las pantallas de acceso (+ ComprovantSessio)
+    FormulariAcces.tsx         Entrar y pedir enlace de recuperación (+ BotoUll)
+    SelectorIdioma.tsx         Idioma suelto, para lo público (dentro va en UserMenu)
+    AccessosTest.tsx           Botones de «entrar com a…» en /login (§6quater)
     Dashboard.tsx              Landing tras login: guía del proceso, KPIs y gestor de la lista Meta
     OffersList.tsx             Ofertas activas con kg en vivo (Realtime) + buscador
     OfferDetail.tsx            Detalle: priorización, canalizaciones, opt-in, cierre, cancelar
@@ -279,6 +294,8 @@ supabase/
     intake-recordatorios/      POST: avisa intakes a medias (lo llama pg_cron vía pg_net)
     enviar-email/index.ts      POST: ofertas por email (JWT + gate email_test_recipients)
     recuperar-password/index.ts POST público: genera enlace de reset y lo manda por Resend
+    registro/index.ts          POST público: alta self-service (cuenta + ficha + membresía
+                               PENDIENTE; el acceso lo concede el equipo al aprobar, §9)
     enviar-acceso/index.ts     POST: enlace mágico por correo y código de 6 cifras por WhatsApp (§9)
     _shared/resend.ts          sendEmail() + plantillaEmail(): el maquetado de TODOS los correos (§9bis)
     _shared/plantillas-meta.md Contenido de las plantillas de Meta (oferta_excedent…) listo
@@ -453,6 +470,25 @@ solo de `membresias`.
 las membresías ya cubren los dos casos reales —**doble rol** productor+entidad (dos filas) y varios
 usuarios por organización (N filas)— sin tocar nada de lo que hay.
 
+**Eje de aprobación** (`20260731100000_registre_public.sql`): `aprovacio`
+(`pendent`·`aprovada`·`rebutjada`, default **`aprovada`**), `aprovat_at`, `aprovat_per`,
+`motiu_aprovacio`. Mismo vocabulario que `oferta_respuestas` (§4), y por el mismo motivo: `activo`
+solo no bastaba, porque tendría que significar a la vez «todavía no validada» y «desactivada por el
+equipo», y esas dos cosas se comportan al revés (la primera sale en la cola y ve «estem revisant la
+teva sol·licitud»; la segunda no debe reaparecer nunca). Cuatro estados y no hay más — un check
+(`aprovacio = 'aprovada' or activo = false`) hace imposible el quinto:
+
+| `aprovacio` | `activo` | Qué es |
+| --- | --- | --- |
+| `pendent` | false | Alta del registro público esperando validación |
+| `rebutjada` | false | Alta rechazada, con su motivo (es auditoría: no se borra nada) |
+| `aprovada` | true | Membresía normal |
+| `aprovada` | false | Membresía desactivada por el equipo |
+
+El default `aprovada` es lo que mantiene válidas las filas que ya existían: eran altas hechas a
+mano, o sea aprobadas por definición. Índice parcial `(created_at) where aprovacio = 'pendent'` para
+la cola, y la tabla está en la publicación de **Realtime** (la cola se refresca sola).
+
 **`entidades.tipo_receptor`** (`20260730091000_entidades_tipo_receptor.sql`) — `social` · `animal` ·
 `transformador` · `comercial`. `modalitat` no servía: es texto libre, admite null y no puede
 expresar «alimentació animal». Se **deriva** de `modalitat` lo que se puede y el resto queda `null`
@@ -492,7 +528,14 @@ public, anon`. Son `security definer` para poder consultarse **desde una políti
 `roles_activos()` · `es_intern()` · `pot_aprovar()` · `es_super_admin()` · `mi_rol()` ·
 `mis_productores()` · `mis_entidades()` · `soc_titular(tipo, org)` ·
 **`get_my_session_context()`** (una llamada al entrar: rol, `vista_defecto` y organizaciones, para
-decidir qué panel se pinta).
+decidir qué panel se pinta; desde `20260731100000` devuelve además **`registre_pendent`** y
+**`registre_rebutjat`** — sin ellas la interfaz no podría distinguir a quien espera validación de
+quien simplemente no tiene organización: los dos llegan con `organizaciones = []`, porque la
+membresía pendiente es `activo = false`).
+
+⚠️ `get_my_session_context()` está marcada **`parallel restricted`** (`20260731080000`). Recrearla
+con `create or replace` **reescribe todos los atributos**, así que hay que repetir esa marca de
+forma explícita o se vuelve `PARALLEL UNSAFE` en silencio.
 
 En las políticas van envueltos en `(select …)` para que el planner los evalúe **una vez por
 consulta** (InitPlan) y no una vez por fila.
@@ -509,9 +552,14 @@ funciones, no políticas:
 | `aprovar_resposta(resposta, kg, preu, motiu)` | Aprobar y canalizar **en una transacción** (hoy `OfferDetail` hace 3-4 llamadas sueltas). Exige `pot_aprovar()` |
 | `actualizar_mi_productor(…)` / `actualizar_mi_entidad(…)` | Autoedición con **lista blanca**: nunca `es_test`, `activo`, `codigo`, `conveni`, `prioritat`, `estat` |
 | `cancelar_meva_oferta(excedente, motiu)` | El productor cancela la suya. Editarla no: el `texto_oferta` ya circuló |
+| `aprovar_registre(membresia)` / `rebutjar_registre(membresia, motiu)` | Validan un alta del registro público (`20260731100000`). Exigen `pot_aprovar()` (42501), bloquean la fila con `for update` y solo actúan sobre `pendent` (22023). **Rechazar no borra nada**: queda la auditoría y la persona ve el motivo |
 
-Además, el trigger `respuestas_control_aprovacio` impide mover `aprovacio`/`canalizacion_id` a quien
-no puede aprobar, incluso si alguien relajara las políticas (cierra la deuda §12.18).
+Además, dos triggers imponen lo mismo aunque alguien relajara las políticas:
+`respuestas_control_aprovacio` impide mover `aprovacio`/`canalizacion_id` de `oferta_respuestas`
+(cierra la deuda §12.18), y **`membresias_control_aprovacio`** impide mover `activo`/`aprovacio` de
+`membresias` a quien no puede aprobar. Este segundo hoy no protege de nada alcanzable —
+`authenticated` ni siquiera tiene GRANT de UPDATE sobre `membresias`—: protege del día en que
+alguien conceda ese GRANT para, pongamos, dejar que un titular cambie el `rol_org` de su equipo.
 
 ### Autorización de las Edge Functions — capa aparte
 
@@ -691,6 +739,9 @@ que corresponde al momento de cierre y todavía no está implementado.
 | **Productor** | `/productor/inici · ofertes · ofertes/nova · ofertes/:id · perfil` | Sus ofertas, su progreso y el **alta con el mismo cuestionario del intake** |
 | **Receptor** | `/receptor/mercat · interessos · historic · perfil` | Las ofertas **compatibles con su `tipo_receptor`**, su interés y su histórico |
 
+Los tres cuelgan de `RequireSessio` y de `/panell`, que es la raíz por rol (§6quater); la raíz `/`
+es desde el 31-07-2026 la página pública.
+
 Una cuenta puede tener más de un panel (doble rol, §12.16): el pie del menú lateral conmuta entre
 ellos. Las pantallas del equipo son **los mismos componentes de siempre** (`Dashboard`, `OffersList`,
 `OfferDetail`, `ProducersList`, `EntitiesList`, `RecordDetail`, `ContactList`, `Conversation`,
@@ -816,6 +867,79 @@ con `disponible_hasta` vencida >24 h y kg sin cubrir. Ahora el intake **rellena*
 cuando la respuesta es una fecha reconocible (§6bis); si no lo es, queda `null` y el job no actúa
 hasta que el panel la normalice.
 
+## 6quater. Parte pública, accesos separados y registro (31-07-2026)
+
+Hasta hoy **no existía ninguna página pública**: `AuthGate` envolvía el router entero, así que
+cualquier URL enseñaba el login del equipo («Consola POMA · accés restringit a l'equip») y el router
+ni se montaba sin sesión. Eso servía cuando los únicos usuarios eran tres personas del equipo; con
+paneles de productor y de receptor deja de servir, porque no hay dónde explicar qué es POMA ni por
+dónde entra alguien que todavía no tiene cuenta.
+
+### La composición se invierte
+
+```text
+App.tsx   SessioProvider            sesión cruda (¿hay token?) + evento PASSWORD_RECOVERY
+            └─ RouterProvider
+router    ArrelApp                  si esRecovery → /restablir, desde cualquier ruta
+            ├─ públicas   /  /login  /admin  /registre  /restablir
+            ├─ RequireSessio         monta AppContextProvider SOLO con sesión confirmada
+            │    ├─ /panell (raíz por rol)  ·  /sense-acces
+            │    └─ AppShell → /equip  /productor  /receptor
+            └─ *  → /
+```
+
+**Por qué dos contextos y no uno.** `useSessio` (nuevo) solo dice si hay token; `useAppContext` dice
+quién eres, y tiene un fallback (`contextDegradat`) que **simula equipo interno** cuando la RPC de
+sesión falla. Ese fallback es correcto dentro de la aplicación y catastrófico fuera: montarlo sin
+sesión regalaría el panel del equipo a cualquiera que abriera la web. Por eso `AppContextProvider`
+vive **dentro** de `RequireSessio` y no puede alcanzarse de otra manera.
+
+| Ruta | Qué es |
+| --- | --- |
+| `/` | **Landing pública** (`routes/public/Landing.tsx`): hero, «Com funciona» (los 4 momentos, con copy propio `land.*`), «Per a qui» y pie. Con sesión redirige a `/panell` |
+| `/login` | Acceso de **productores y entidades**, con enlace al registro y los accesos de prueba |
+| `/admin` | Acceso del **equipo**, con el copy de siempre. **No se enlaza desde lo público** |
+| `/registre` | Alta self-service por rol (§9) |
+| `/restablir` | Contraseña nueva tras un enlace de recuperación |
+| `/panell` | Lo que antes era `/`: manda a cada cual a su panel |
+
+⚠️ **`/admin` no está enlazado, pero eso no es una protección.** Quien conozca la URL ve el mismo
+formulario; lo que protege el panel del equipo son `RoleGuard` y las políticas de la base, no el
+secreto de la ruta.
+
+⚠️ **Los enlaces de recuperación y los mágicos aterrizan en `/`** (`redirectTo = APP_URL`) y
+supabase-js consume los tokens del hash en cualquier ruta. Desde que la raíz es pública, quien
+captura el evento `PASSWORD_RECOVERY` es `ArrelApp`, que desvía a `/restablir`. Si algún día se
+cambia `APP_URL`, hay que revisar esto **y** la allow-list de Auth (§10).
+
+**Deep-link**: antes la URL nunca cambiaba (el login se pintaba encima). Ahora `RequireSessio`
+guarda la URL pedida en `location.state.from` y las dos pantallas de acceso vuelven a ella al
+entrar; si la cuenta no tiene ese panel, `RoleGuard` la recoloca como siempre.
+
+### Accesos directos a las cuentas de prueba
+
+`/login` muestra, bajo el formulario, un botón por cuenta de prueba agrupado en Productors /
+Receptors / Control (`src/lib/accessosTest.ts` + `components/AccessosTest.tsx`): un clic abre sesión.
+Dos límites que **no se pueden relajar**:
+
+1. **Solo cuentas de las organizaciones ficticias `TEST-*`.** Las dos cuentas de equipo de prueba
+   (`hola+superadmin`, `hola+equip`) no están ni pueden estar: ven las 452 fichas reales con nombre,
+   NIF, teléfono y dirección.
+2. Todo el bloque va tras la variable de build **`VITE_ACCESSOS_TEST`** (§10). Con ella apagada,
+   Vite pliega la constante a `false`, el `&&` queda en código muerto y el módulo con las
+   contraseñas **se cae del bundle**. Verificado con `grep` sobre `dist/`, no por confianza: la
+   contraprueba con el flag encendido sí las encuentra.
+
+### Aprovacions: dos colas
+
+`src/routes/equip/Aprovacions.tsx` tiene ahora **«Registres pendents»** (altas del registro público:
+`membresias` con `aprovacio='pendent'`, embebiendo la ficha, más una segunda consulta a `perfiles`
+—`membresias.user_id` referencia `auth.users`, no `perfiles`, así que PostgREST no los embebe) y la
+cola de respuestas a ofertas de siempre. Cada fila enlaza a la ficha para poder **completarla antes**
+de aprobar (una entidad nueva llega con `estat = null` y hasta que se rellene no entra en la
+priorización). Los botones llaman a `aprovar_registre` / `rebutjar_registre` (§4bis). El contador del
+menú (`AppShell`) **suma las dos colas**.
+
 ## 7. Convenciones
 
 - **Teléfonos**: E.164 **sin** `+`, solo dígitos → `34612345678`. Validación en el frontend:
@@ -832,9 +956,9 @@ hasta que el panel la normalice.
 - **Secretos**: nunca en el código. Env vars, siempre.
 - **`docs/` y `scripts/data/` nunca entran en git.** El primero es material de trabajo —incluye el
   **funcional de negocio** (`Documento funcional POMA 2026.md` y `Documento funcional POMA 2026 —
-  adaptado.md`, resumidos en §1bis), `nuevas-funcionalidades/` y los cinco documentos operativos
-  de §1 (guía de producción de WhatsApp + su HTML visual, costes, flujo de la aplicación y
-  **usuarios y accesos, con contraseñas en claro**)—; el segundo son datos personales
+  adaptado.md`, resumidos en §1bis), `nuevas-funcionalidades/` y los seis documentos operativos
+  de §1 (guía de producción de WhatsApp + su HTML visual, costes, flujo de la aplicación y los dos
+  de **usuarios, con contraseñas en claro**)—; el segundo son datos personales
   (teléfonos, emails y NIF de ~450 personas y entidades). `.env.local.example` sí se versiona: es la
   plantilla, sin valores.
 - **Claves de Supabase**: usar las **nuevas** — `sb_publishable_...` en el frontend,
@@ -989,10 +1113,13 @@ cierre real (kg reales, albaranes, o marcar `no_colocada` con motivo).
 
 ## 9. Seguridad y autenticación
 
-**El acceso exige una sesión de Supabase Auth.** Ya no hay lectura anónima: el
-`PasswordGate` cosmético se sustituyó por `AuthGate.tsx` (login real con
-`signInWithPassword`), las políticas RLS y los GRANT pasaron de `anon` a
-`authenticated`, y `whatsapp-send` valida el JWT del usuario.
+**Todo DATO exige una sesión de Supabase Auth.** Ya no hay lectura anónima: el
+`PasswordGate` cosmético se sustituyó por un login real con `signInWithPassword`, las políticas RLS
+y los GRANT pasaron de `anon` a `authenticated`, y `whatsapp-send` valida el JWT del usuario.
+
+Desde el 31-07-2026 **hay páginas públicas** (landing, los dos accesos, el registro; §6quater), pero
+eso no abre ningún dato: `anon` sigue sin un solo privilegio de tabla, y lo público es HTML estático
+más dos Edge Functions con sus propios controles (`recuperar-password` y `registro`).
 
 | Pieza | Cómo se protege |
 | --- | --- |
@@ -1001,8 +1128,8 @@ cierre real (kg reales, albaranes, o marcar `no_colocada` con motivo).
 | **Edge Functions con JWT** | `exigirEquipo()` de `_shared/autorizacion.ts` en `whatsapp-send`, `enviar-email` y `priorizar-entidades`. Hace falta porque corren con `service_role`, que **ignora RLS** (§4bis) |
 | `whatsapp-send` | Desplegada **con** verificación de JWT (sin `--no-verify-jwt`) y además comprueba `getUser(token)` |
 | `whatsapp-webhook` | Sigue con `--no-verify-jwt` porque Meta no envía JWT; se valida la firma `X-Hub-Signature-256` |
-| Alta de cuentas | Solo con la Admin API (`scripts/crear-usuario.ts`). El registro público está desactivado |
-| Login | `AuthGate.tsx`: `signInWithPassword` + botón «ojo» (mostrar/ocultar) + «¿olvidaste la contraseña?» |
+| Alta de cuentas | Admin API (`scripts/crear-usuario.ts`) **o** la Edge Function pública `registro`, que crea la cuenta con la membresía **PENDIENTE**: el acceso real lo concede el equipo al aprobar. `enable_signup` sigue `false` y así debe seguir — la Admin API lo ignora, y así el alta pasa siempre por nuestro código |
+| Login | `FormulariAcces.tsx`: `signInWithPassword` + botón «ojo» + «¿olvidaste la contraseña?». Se monta en `/login` (usuarios) y `/admin` (equipo) |
 | Recuperar contraseña | Edge Function `recuperar-password` (pública) + Resend; **no** usa el mailer nativo (§ abajo) |
 
 ### Correos: ahora sí, pero solo por Resend
@@ -1017,7 +1144,7 @@ apagado y en test). Detalle:
   links (esos disparan el mailer nativo).
 - El **reset** usa `admin.generateLink({type:'recovery'})` (Admin API, **no** envía correo por sí
   mismo) y el enlace se manda por **Resend** desde `recuperar-password`. La app detecta el evento
-  `PASSWORD_RECOVERY` y muestra el form de nueva contraseña (`AuthGate`). La `redirectTo` (APP_URL)
+  `PASSWORD_RECOVERY` (en `useSessio`, §6quater) y desvía a `/restablir`. La `redirectTo` (APP_URL)
   debe estar en la allow-list de Auth (Management API, **no** config push; §10).
 - **Dominio `espigoladors.com` verificado en Resend** y `RESEND_FROM="POMA <no-reply@espigoladors.com>"`
   configurado, así que **se envía a cualquier dirección** (verificado el envío a un correo externo).
@@ -1067,28 +1194,74 @@ la única que hay es `hello_world`, que no admite variables—. Para el resto de
 Mandarlo por WhatsApp de forma general exigiría número de producción y una plantilla de categoría
 `AUTHENTICATION` (checkpoint §12.2).
 
+### Registro self-service (`registro`, 31-07-2026)
+
+`POST /functions/v1/registro` — **pública** (`--no-verify-jwt`), porque la llama quien todavía no
+tiene cuenta. Crea, en este orden: la cuenta (`admin.createUser`, `email_confirm: true`), la ficha
+(`productores` o `entidades`, con `es_test = false`) y la **membresía `pendent` con `activo = false`**
+(§4bis). Contrato completo y códigos de error en el propio fichero; los mensajes van en catalán,
+listos para mostrar.
+
+**Abre el alta sin abrir el acceso.** La persona puede iniciar sesión y no ve absolutamente nada
+—los helpers filtran por `membresias.activo`—: le sale la pantalla «Compte pendent de validació».
+Quien concede el acceso de verdad es el equipo, desde Aprovacions (§6quater).
+
+**No vincula nunca con una ficha existente.** `productores.email` y `phone` son UNIQUE sobre 345
+fichas reales: si el correo o el teléfono chocan, responde `409 dades_en_us` y no crea nada. Vincular
+automáticamente sería permitir apropiarse de una organización real conociendo su correo. `entidades`
+no tiene ninguna restricción de unicidad, así que ahí el duplicado se cuela y lo detecta el equipo al
+validar (deuda §12.28).
+
+**Enumeración aceptada a propósito.** Un correo ya registrado devuelve `409 email_ja_registrat`, al
+revés que `recuperar-password`, que siempre responde 200 genérico. La incoherencia es deliberada: la
+respuesta genérica solo funciona si puedes rematar el flujo por correo («si ya tenías cuenta, te
+hemos escrito») y **este registro no envía ningún correo**; un genérico dejaría a la persona legítima
+esperando una validación que no llegaría nunca.
+
+**Anti-abuso proporcionado** (sin captcha, deuda §12.26): honeypot `web` —que responde 200 falso—,
+límite de 5 intentos/10 min por IP **en memoria** (best-effort: se pierde en cada arranque en frío y
+no se comparte entre instancias) y un freno global durable: ≥20 registros pendientes en la última
+hora → 429. A la escala de POMA, ese freno no molesta a nadie legítimo y corta un abuso masivo aunque
+roten las IP.
+
+**Compensación**: si falla el insert de la ficha se borra la cuenta; si falla la membresía se borran
+ficha y cuenta. El orden está elegido para que el peor residuo posible sea una cuenta de Auth sin
+membresía —inocua, no sale en ningún listado— y nunca una ficha huérfana contaminando los 345
+productores reales.
+
+⚠️ **Nadie recibe ningún correo**: ni de bienvenida, ni de verificación del correo, ni al aprobar.
+Hoy la persona se entera entrando. Con el modo test encendido tampoco podría recibirlo: su
+organización nace `es_test = false` y el gate de cuenta (§8) la bloquea. Deuda §12.27.
+
 ### Usuarios de prueba
 
-`scripts/crear-usuarios-prueba.ts` crea **6 organizaciones ficticias** (`TEST-PROD-1`, `TEST-PROD-2`,
-`TEST-ENT-SOCIAL`, `TEST-ENT-ANIMAL`, `TEST-ENT-OBRADOR`, `TEST-ENT-COMERCIAL`, todas `es_test`) y
-**12 cuentas** con el patrón `hola+<rol>-<org>@carlessanz.com`, incluidas una de control sin rol y
-un segundo productor para comprobar que no se filtran datos entre organizaciones. Ficticias a
-propósito: un fallo de permisos no expone entonces ninguna organización real, y ningún botón manda
-un WhatsApp a un receptor de verdad. Sin teléfono por defecto (`productores.phone` es UNIQUE y los
-números del equipo ya están dados de alta).
+`scripts/crear-usuarios-prueba.ts` crea **7 organizaciones ficticias** (`TEST-PROD-1`, `TEST-PROD-2`,
+`TEST-PROD-PENDENT`, `TEST-ENT-SOCIAL`, `TEST-ENT-ANIMAL`, `TEST-ENT-OBRADOR`, `TEST-ENT-COMERCIAL`,
+todas `es_test`) y **13 cuentas** con el patrón `hola+<rol>-<org>@carlessanz.com`, incluidas una de
+control sin rol, un segundo productor para comprobar que no se filtran datos entre organizaciones y
+—desde el 31-07-2026— una con la **membresía pendiente de validar**, que es la que ejercita la
+pantalla de espera y la cola de Aprovacions. Ficticias a propósito: un fallo de permisos no expone
+entonces ninguna organización real, y ningún botón manda un WhatsApp a un receptor de verdad. Sin
+teléfono por defecto (`productores.phone` es UNIQUE y los números del equipo ya están dados de alta).
+
+⚠️ El script es idempotente y reescribe las membresías, así que **reejecutarlo devuelve la cuenta
+pendiente a `pendent`** aunque se hubiera aprobado. Es un reset del escenario de prueba, no un fallo.
 
 ### Lo que sigue pendiente
 
-- **El modelo de roles existe pero está apagado.** Las políticas por rol y por organización ya están
-  desplegadas (§4bis), pero `app_settings.roles_activos` vale `'false'`, así que de momento cualquier
-  cuenta autenticada sigue viéndolo y pudiéndolo todo, igual que antes. Encenderlo es un `update` de
-  una fila; hasta entonces, **dar de alta una cuenta sigue equivaliendo a dar acceso total**.
-- Antes de encender el interruptor hay que promover a mano al menos un `super_admin`
-  (`20260730093000_seed_equipo_interno.sql` deja a todo el equipo como `admin`), o nadie podrá tocar
-  el modo test ni borrar fichas.
-- `enable_signup = false` vive en `config.toml`; si alguien lo reactiva, cualquiera podría
-  registrarse. Con los roles apagados eso significa acceso a toda la base; con los roles encendidos,
-  una cuenta sin rol ni membresía no ve nada.
+- ~~El modelo de roles existe pero está apagado~~ — **`roles_activos` está ENCENDIDO** desde el
+  30-07-2026 y verificado (§4bis): cada cuenta ve solo lo suyo, y `hola@carlessanz.com` es
+  `super_admin`. Dar de alta una cuenta ya **no** equivale a dar acceso total: sin rol ni membresía
+  activa no se ve nada. Se revierte con `deno run -A scripts/roles-activos.ts off`.
+- `enable_signup = false` vive en `config.toml` y **debe seguir así**: el alta pasa siempre por
+  nuestro código (Admin API o la Edge Function `registro`, que la ignora porque usa `service_role`).
+  Si alguien reactivara el flag, cualquiera podría registrarse **saltándose la validación del
+  equipo** y quedaría con una cuenta sin membresía —que hoy no ve nada, pero tampoco pasa por la
+  cola—. No es una vía de escalada, es una vía de ruido.
+- **Los accesos de prueba llevan contraseñas en el bundle** mientras `VITE_ACCESSOS_TEST` esté a
+  `true` (hoy lo está, también en Vercel producción). Son solo de organizaciones ficticias `TEST-*`
+  (§6quater), pero cualquiera que abra `/login` puede entrar como ellas y ver lo que ellas ven.
+  Apagar la variable al salir de la fase de demo.
 - Los datos personales **ya están en remoto**: 341 productores y 111 entidades, importados
   el 21-07-2026. Lo único que los protege es la autenticación de arriba; verificado que con
   la publishable key las tablas responden `42501`. Dar de alta una cuenta equivale a dar
@@ -1125,6 +1298,10 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY` (`sb_publishable_...`)
+- `VITE_ACCESSOS_TEST` — `"true"` enseña en `/login` los accesos de un clic a las cuentas de prueba
+  (§6quater). **Es una variable de build**: cambiarla exige recompilar y volver a desplegar, no basta
+  con editarla en Vercel. Con cualquier otro valor —o ausente— el módulo con las contraseñas se cae
+  del bundle. Hoy vale `true` en local y en Vercel producción.
 
 **Edge Functions** (secrets de Supabase):
 
@@ -1217,6 +1394,7 @@ supabase functions deploy intake-recordatorios --no-verify-jwt   # lo llama pg_c
 supabase functions deploy enviar-email         # con verify_jwt (ofertas por email)
 supabase functions deploy recuperar-password --no-verify-jwt     # login público
 supabase functions deploy crear-oferta         # con verify_jwt (alta desde el panel del productor)
+supabase functions deploy registro --no-verify-jwt               # registro público self-service (§9)
 supabase functions deploy enviar-acceso        # con verify_jwt (enlace mágico / código de acceso)
 supabase secrets set --env-file .secrets.env
 
@@ -1349,11 +1527,36 @@ POMA en producción real quedan pasos de configuración y negocio.
 25. **Un fallo de envío por correo sigue sin dejar rastro.** WhatsApp ya lo registra (§8ter,
     `status='error'`), pero si Resend rechaza un envío solo queda en los logs de la Edge Function:
     en el panel no se distingue de un envío correcto.
+26. **El registro público no tiene captcha y su límite por IP vive en memoria** (§9): se pierde en
+    cada arranque en frío del isolate y no se comparte entre instancias. Lo que de verdad frena un
+    abuso masivo es el tope de 20 pendientes por hora. Turnstile queda pendiente; hoy no compensa,
+    porque el coste de un alta basura es una fila que el equipo rechaza con un clic.
+27. **Ni el registro ni la aprobación envían correo.** `email_confirm: true` da el correo por
+    verificado sin comprobarlo, así que **un error tipográfico en el correo deja la cuenta sin
+    ningún canal** (y con el modo test encendido tampoco podría recuperar la contraseña, §8). Y quien
+    espera validación se entera de que se la han aprobado entrando a mirar. Falta una notificación
+    —que dependerá de la tabla `notificacion` con *fallback* de canal del funcional (§1bis)—.
+28. **El registro no deduplica contra las organizaciones existentes.** En `productores` los UNIQUE de
+    `email`/`phone` al menos cortan el alta con `dades_en_us`; `entidades` no tiene ninguna
+    restricción de unicidad, así que una entidad ya fichada puede registrarse otra vez y solo lo
+    detecta el equipo al validar. Se arregla de verdad con la `organizacion` unificada (§1bis,
+    brecha 2), no con un parche aquí.
+29. **Una ficha rechazada se queda en los listados.** `rebutjar_registre` no borra nada a propósito
+    (auditoría y motivo visible), pero `ProducersList`/`EntitiesList` no filtran por `aprovacio`, así
+    que esa organización aparece como una más hasta que el super_admin la borre a mano desde su
+    ficha. Y la cuenta de Auth huérfana hay que borrarla aparte.
+30. **Las contraseñas de las cuentas de prueba viajan en el bundle** con `VITE_ACCESSOS_TEST=true`
+    (§6quater, §10). Está acotado —solo organizaciones ficticias `TEST-*`, nunca el equipo— y se
+    apaga con la variable, pero mientras esté encendido cualquiera que abra `/login` entra como
+    ellas. Apagarlo al dejar de ser una demo.
 
 ## 13. Al terminar cualquier cambio
 
 1. `npm run build` en verde.
-2. **Actualizar este fichero** si cambió arquitectura, datos, contratos, convenciones,
+2. `deno run -A scripts/comprobar-rls.ts` si el cambio toca datos, políticas o roles. Referencia
+   actual: **58/59** (el rojo conocido es un receptor comercial sin ninguna oferta de `venda`
+   publicada, que es el comportamiento correcto). Cualquier otro rojo es una regresión.
+3. **Actualizar este fichero** si cambió arquitectura, datos, contratos, convenciones,
    comandos o deuda técnica; y **§1bis + su tabla de correspondencia** si cambió el alcance
    funcional o el estado de implementación (✅/🟡/⬜).
-3. Commit en castellano, describiendo el *qué* y el *por qué*.
+4. Commit en castellano, describiendo el *qué* y el *por qué*.

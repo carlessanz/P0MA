@@ -16,9 +16,11 @@ export default defineConfig({
     //    tenga que desinstalar nada.
     //
     // 2. NADA de Supabase se cachea (`NetworkOnly` para *.supabase.co, y las rutas de
-    //    API fuera del navigateFallback). Esta app es 100 % autenticada y con datos
+    //    API fuera del navigateFallback). Los DATOS siguen siendo 100 % autenticados y
     //    personales: cachear una respuesta de PostgREST en un móvil compartido podría
-    //    servirle a la siguiente persona los datos de la anterior.
+    //    servirle a la siguiente persona los datos de la anterior. Que ahora haya
+    //    landing, accesos y registro públicos no cambia nada de esto: lo público es el
+    //    shell estático, que el precache ya sirve igual para cualquier ruta.
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'logo-poma.svg'],

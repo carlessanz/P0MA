@@ -1,4 +1,9 @@
-// Mapa de rutas. Prefijo por rol (`/equip`, `/productor`, `/receptor`) porque una
+// Mapa de rutas. Dos mitades:
+//
+//   · Pública: landing, los dos accesos y el registro. No sabe nada de roles.
+//   · Privada: todo lo demás, bajo RequireSessio, que es quien monta el contexto de rol.
+//
+// Dentro de la privada, prefijo por rol (`/equip`, `/productor`, `/receptor`) porque una
 // misma cuenta puede tener varios paneles (doble rol productor+entidad, §12.16) y así
 // la guarda es inequívoca y el enlace, compartible.
 //
@@ -8,7 +13,12 @@
 
 import { createBrowserRouter, Navigate } from 'react-router'
 import AppShell from '../layout/AppShell'
-import { ArrelPerRol, RoleGuard, SenseAcces } from '../routes/Comuns'
+import { ArrelApp, ArrelPerRol, RequireSessio, RoleGuard, SenseAcces } from '../routes/Comuns'
+import Landing from '../routes/public/Landing'
+import LoginUsuaris from '../routes/public/LoginUsuaris'
+import LoginEquip from '../routes/public/LoginEquip'
+import Registre from '../routes/public/Registre'
+import RestablirClau from '../routes/public/RestablirClau'
 import Dashboard from '../components/Dashboard'
 import Settings from '../components/Settings'
 import { Entitats, Ofertes, Productors } from '../routes/equip/Llistats'
@@ -24,55 +34,75 @@ import Mercat from '../routes/receptor/Mercat'
 import { Historic, Interessos } from '../routes/receptor/Interessos'
 
 export const router = createBrowserRouter([
-  { path: '/', element: <ArrelPerRol /> },
-  { path: '/sense-acces', element: <SenseAcces /> },
   {
-    element: <AppShell />,
+    element: <ArrelApp />,
     children: [
+      // ── Pública ──
+      { path: '/', element: <Landing /> },
+      { path: '/login', element: <LoginUsuaris /> },
+      { path: '/admin', element: <LoginEquip /> },
+      { path: '/registre', element: <Registre /> },
+      { path: '/restablir', element: <RestablirClau /> },
+
+      // ── Privada ──
       {
-        path: '/equip',
-        element: <RoleGuard rol="intern" />,
+        element: <RequireSessio />,
         children: [
-          { index: true, element: <Navigate to="/equip/tauler" replace /> },
-          { path: 'tauler', element: <Dashboard />, handle: { titleKey: 'nav.dashboard' } },
-          { path: 'ofertes', element: <Ofertes />, handle: { titleKey: 'nav.offers', ample: true } },
-          { path: 'ofertes/:id', element: <OfertaDetall />, handle: { titleKey: 'nav.offers' } },
-          { path: 'aprovacions', element: <Aprovacions />, handle: { titleKey: 'nav.approvals' } },
-          { path: 'productors', element: <Productors />, handle: { titleKey: 'nav.producers', ample: true } },
-          { path: 'productors/nou', element: <FitxaRegistre tabla="productores" />, handle: { titleKey: 'nav.producers' } },
-          { path: 'productors/:id', element: <FitxaRegistre tabla="productores" />, handle: { titleKey: 'nav.producers' } },
-          { path: 'entitats', element: <Entitats />, handle: { titleKey: 'nav.entities', ample: true } },
-          { path: 'entitats/nova', element: <FitxaRegistre tabla="entidades" />, handle: { titleKey: 'nav.entities' } },
-          { path: 'entitats/:id', element: <FitxaRegistre tabla="entidades" />, handle: { titleKey: 'nav.entities' } },
-          { path: 'missatgeria', element: <Missatgeria />, handle: { titleKey: 'nav.messaging', fullBleed: true } },
-          { path: 'missatgeria/:phone', element: <Missatgeria />, handle: { titleKey: 'nav.messaging', fullBleed: true } },
-          { path: 'configuracio', element: <Settings />, handle: { titleKey: 'nav.settings' } },
+          { path: '/panell', element: <ArrelPerRol /> },
+          { path: '/sense-acces', element: <SenseAcces /> },
+          {
+            element: <AppShell />,
+            children: [
+              {
+                path: '/equip',
+                element: <RoleGuard rol="intern" />,
+                children: [
+                  { index: true, element: <Navigate to="/equip/tauler" replace /> },
+                  { path: 'tauler', element: <Dashboard />, handle: { titleKey: 'nav.dashboard' } },
+                  { path: 'ofertes', element: <Ofertes />, handle: { titleKey: 'nav.offers', ample: true } },
+                  { path: 'ofertes/:id', element: <OfertaDetall />, handle: { titleKey: 'nav.offers' } },
+                  { path: 'aprovacions', element: <Aprovacions />, handle: { titleKey: 'nav.approvals' } },
+                  { path: 'productors', element: <Productors />, handle: { titleKey: 'nav.producers', ample: true } },
+                  { path: 'productors/nou', element: <FitxaRegistre tabla="productores" />, handle: { titleKey: 'nav.producers' } },
+                  { path: 'productors/:id', element: <FitxaRegistre tabla="productores" />, handle: { titleKey: 'nav.producers' } },
+                  { path: 'entitats', element: <Entitats />, handle: { titleKey: 'nav.entities', ample: true } },
+                  { path: 'entitats/nova', element: <FitxaRegistre tabla="entidades" />, handle: { titleKey: 'nav.entities' } },
+                  { path: 'entitats/:id', element: <FitxaRegistre tabla="entidades" />, handle: { titleKey: 'nav.entities' } },
+                  { path: 'missatgeria', element: <Missatgeria />, handle: { titleKey: 'nav.messaging', fullBleed: true } },
+                  { path: 'missatgeria/:phone', element: <Missatgeria />, handle: { titleKey: 'nav.messaging', fullBleed: true } },
+                  { path: 'configuracio', element: <Settings />, handle: { titleKey: 'nav.settings' } },
+                ],
+              },
+              {
+                path: '/productor',
+                element: <RoleGuard rol="productor" />,
+                children: [
+                  { index: true, element: <Navigate to="/productor/inici" replace /> },
+                  { path: 'inici', element: <ProductorInici />, handle: { titleKey: 'nav.home' } },
+                  { path: 'ofertes', element: <ProductorOfertes />, handle: { titleKey: 'nav.my_offers' } },
+                  { path: 'ofertes/nova', element: <NovaOferta />, handle: { titleKey: 'nav.new_offer' } },
+                  { path: 'ofertes/:id', element: <ProductorOfertaDetall />, handle: { titleKey: 'nav.my_offers' } },
+                  { path: 'perfil', element: <PerfilOrganitzacio />, handle: { titleKey: 'nav.my_org' } },
+                ],
+              },
+              {
+                path: '/receptor',
+                element: <RoleGuard rol="receptor" />,
+                children: [
+                  { index: true, element: <Navigate to="/receptor/mercat" replace /> },
+                  { path: 'mercat', element: <Mercat />, handle: { titleKey: 'nav.market' } },
+                  { path: 'interessos', element: <Interessos />, handle: { titleKey: 'nav.my_interests' } },
+                  { path: 'historic', element: <Historic />, handle: { titleKey: 'nav.history' } },
+                  { path: 'perfil', element: <PerfilOrganitzacio />, handle: { titleKey: 'nav.my_org' } },
+                ],
+              },
+            ],
+          },
         ],
       },
-      {
-        path: '/productor',
-        element: <RoleGuard rol="productor" />,
-        children: [
-          { index: true, element: <Navigate to="/productor/inici" replace /> },
-          { path: 'inici', element: <ProductorInici />, handle: { titleKey: 'nav.home' } },
-          { path: 'ofertes', element: <ProductorOfertes />, handle: { titleKey: 'nav.my_offers' } },
-          { path: 'ofertes/nova', element: <NovaOferta />, handle: { titleKey: 'nav.new_offer' } },
-          { path: 'ofertes/:id', element: <ProductorOfertaDetall />, handle: { titleKey: 'nav.my_offers' } },
-          { path: 'perfil', element: <PerfilOrganitzacio />, handle: { titleKey: 'nav.my_org' } },
-        ],
-      },
-      {
-        path: '/receptor',
-        element: <RoleGuard rol="receptor" />,
-        children: [
-          { index: true, element: <Navigate to="/receptor/mercat" replace /> },
-          { path: 'mercat', element: <Mercat />, handle: { titleKey: 'nav.market' } },
-          { path: 'interessos', element: <Interessos />, handle: { titleKey: 'nav.my_interests' } },
-          { path: 'historic', element: <Historic />, handle: { titleKey: 'nav.history' } },
-          { path: 'perfil', element: <PerfilOrganitzacio />, handle: { titleKey: 'nav.my_org' } },
-        ],
-      },
+
+      // Ruta desconocida → landing. Con sesión, la landing reenvía sola a /panell.
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
-  { path: '*', element: <Navigate to="/" replace /> },
 ])

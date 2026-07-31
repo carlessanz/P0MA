@@ -48,16 +48,22 @@ export default function AppShell() {
     if (rolActiu !== 'intern') { setComptadors({}); return }
     let viu = true
     void (async () => {
-      const [respostes, missatges] = await Promise.all([
+      const [respostes, registres, missatges] = await Promise.all([
         supabase.from('oferta_respuestas')
           .select('id', { count: 'exact', head: true })
           .eq('estado', 'acceptada').eq('aprovacio', 'pendent'),
+        // Altas del registro público sin validar: la otra cola de la misma pantalla.
+        // Si la migración no está aplicada, `count` llega null y cuenta 0: el badge no
+        // rompe el menú por una columna que todavía no existe.
+        supabase.from('membresias')
+          .select('id', { count: 'exact', head: true })
+          .eq('aprovacio', 'pendent'),
         supabase.from('wa_messages').select('contact_phone, direction, created_at'),
       ])
       if (!viu) return
       const pendents = countUnanswered((missatges.data as MessageRow[]) ?? [])
       setComptadors({
-        aprovacions: respostes.count ?? 0,
+        aprovacions: (respostes.count ?? 0) + (registres.count ?? 0),
         missatges: Object.values(pendents).reduce((s, n) => s + n, 0),
       })
     })()

@@ -15,8 +15,9 @@ canónico, que se importa aquí:
 salida comercial, transformación por maquila, espigueo y diagnóstico/prevención— con un equipo de
 dinamización que opera de forma **asistida** en nombre de las organizaciones. Lo construido hoy es
 un **subconjunto** de esa visión (Fase 1 WhatsApp + POMA núcleo: intake, priorización, canalización
-y cierre básico); falta el grueso del modelo objetivo (organización multirol, convenios, demandas,
-conciliación real, certificados, back office con roles, diagnóstico/planes).
+y cierre básico, más —desde el 31-07-2026— **parte pública, registro self-service validado por el
+equipo y accesos separados** para usuarios y equipo); falta el grueso del modelo objetivo
+(organización multirol, convenios, demandas, conciliación real, certificados, diagnóstico/planes).
 
 - **Versión reducida + correspondencia objetivo↔construido:** `AGENTS.md §1bis` (se importa arriba;
   es la fuente mantenida de este resumen).
@@ -37,13 +38,17 @@ Actualiza `AGENTS.md` cuando cambie cualquiera de estas cosas:
 
 - estructura de ficheros o responsabilidades de los componentes
 - esquema de la base de datos, políticas RLS o migraciones
-- contratos de las Edge Functions (`whatsapp-send`, `whatsapp-webhook`)
+- contratos de las Edge Functions (`whatsapp-send`, `whatsapp-webhook`, `registro`…)
+- **el mapa de rutas**, sobre todo qué es público y qué no (`AGENTS.md §6quater`)
 - convenciones, reglas de negocio o postura de seguridad
 - variables de entorno o comandos
 - deuda técnica: lo que se resuelva se tacha, lo que se introduzca se anota
 
 ## Antes de dar por terminado un cambio
 
-1. `npm run build` (corre `tsc` en modo `strict`; es la única verificación automática).
-2. `AGENTS.md` actualizado.
-3. Commit en castellano.
+1. `npm run build` (corre `tsc` en modo `strict`).
+2. `deno run -A scripts/comprobar-rls.ts` si el cambio toca datos, políticas o roles: comprueba los
+   permisos de verdad, contra la base y con sesiones reales. Hoy está en **58/59** (el único rojo es
+   conocido y correcto: un receptor comercial sin ninguna oferta de `venda` publicada).
+3. `AGENTS.md` actualizado.
+4. Commit en castellano.

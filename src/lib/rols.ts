@@ -36,6 +36,15 @@ export interface ContextSessio {
   /** Paneles a los que esta cuenta tiene acceso; puede ser más de uno (doble rol). */
   rols: Rol[]
   /**
+   * Alta hecha desde el registro público y todavía sin validar por el equipo. No sale en
+   * `organitzacions` —la RPC solo devuelve las membresías activas—, así que sin esta marca
+   * la persona vería la pantalla genérica de «sin panel» y no entendería que hay algo en
+   * curso.
+   */
+  registrePendent: boolean
+  /** El equipo rechazó el alta y la cuenta no tiene ninguna otra membresía activa. */
+  registreRebutjat: boolean
+  /**
    * true cuando no se ha podido leer el contexto (la migración de roles aún no está
    * desplegada, o la RPC falla). Se trata como equipo interno: es el comportamiento
    * que la app ha tenido siempre, y con `roles_activos` apagado es además el correcto.
@@ -57,6 +66,9 @@ export interface ContextCru {
   es_super_admin: boolean
   vista_defecto: Rol | null
   organizaciones: Organitzacio[]
+  /** Opcionales: los añade la migración del registro público; sin ella llegan `undefined`. */
+  registre_pendent?: boolean
+  registre_rebutjat?: boolean
 }
 
 export function mapejaContext(cru: ContextCru): ContextSessio {
@@ -78,6 +90,8 @@ export function mapejaContext(cru: ContextCru): ContextSessio {
     rolesActivos: cru.roles_activos,
     organitzacions,
     rols,
+    registrePendent: cru.registre_pendent ?? false,
+    registreRebutjat: cru.registre_rebutjat ?? false,
     degradat: false,
   }
 }
@@ -96,6 +110,8 @@ export function contextDegradat(userId: string, email: string | null): ContextSe
     rolesActivos: false,
     organitzacions: [],
     rols: ['intern'],
+    registrePendent: false,
+    registreRebutjat: false,
     degradat: true,
   }
 }

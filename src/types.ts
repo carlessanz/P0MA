@@ -193,6 +193,29 @@ export interface IntakeSession {
   updated_at: string
 }
 
+/**
+ * Vincula una cuenta con su ficha de organización (§4bis). `aprovacio` es un eje
+ * SEPARADO de `activo` a propósito: `activo=false` tendría que significar a la vez
+ * «todavía no validada» (registro público, sale en la cola de aprobaciones) y
+ * «desactivada por el equipo» (no debe reaparecer nunca).
+ */
+export interface Membresia {
+  id: string
+  user_id: string
+  tipo: 'productor' | 'entidad'
+  /** Exactamente una de las dos, coherente con `tipo` */
+  productor_id: string | null
+  entidad_id: string | null
+  rol_org: 'titular' | 'operador'
+  activo: boolean
+  /** Decisión del equipo sobre el alta: solo la mueven las RPC aprovar/rebutjar_registre */
+  aprovacio: 'pendent' | 'aprovada' | 'rebutjada'
+  aprovat_at: string | null
+  aprovat_per: string | null
+  motiu_aprovacio: string | null
+  created_at: string
+}
+
 export interface Producto {
   nombre: string
   familia: string | null

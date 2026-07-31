@@ -41,7 +41,8 @@ export default function AppSidebar({ comptadors }: Props) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-3 px-3 py-4">
-        <NavLink to="/" className="flex items-center gap-2.5 overflow-hidden" onClick={alNavegar}>
+        {/* A `/panell`, no a `/`: la raíz es la página pública y sacaría de la aplicación. */}
+        <NavLink to="/panell" className="flex items-center gap-2.5 overflow-hidden" onClick={alNavegar}>
           <img src="/logo-poma.svg" alt="POMA" className="h-7 w-auto shrink-0 brightness-0 invert" />
           <span className="truncate text-sm font-semibold group-data-[collapsible=icon]:hidden">
             {titol}
