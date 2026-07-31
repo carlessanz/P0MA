@@ -1293,6 +1293,18 @@ POMA en producción real quedan pasos de configuración y negocio.
 22. **Sin preferencia de canal declarada por la persona.** El canal se deduce de lo que hay en la
     ficha (móvil, opt-in, ventana). El funcional pide un campo explícito de «canal preferido» por
     organización: cuando exista, mandará sobre la deducción.
+23. **`excedentes` tiene el único predicado de RLS que no puede ser InitPlan**: el `EXISTS` de
+    `20260730098000_rls_ofertas_sense_recursio.sql` está correlacionado con `excedentes.modalitat`,
+    así que se evalúa como SubPlan **una vez por fila**, y dentro recorre `entidades` (que reevalúa
+    su propia RLS). Con 7 excedentes no se nota; el arreglo, cuando haga falta, es un SRF
+    `security definer` sin correlación que devuelva las modalidades compatibles de la cuenta.
+24. **Los eventos DELETE de Realtime se entregan sin evaluar RLS** (`realtime.apply_rls` los reparte
+    a todos los suscriptores porque, con la replica identity por defecto, el WAL solo lleva la
+    clave primaria). Hoy es inocuo: el payload es solo un id. Dejaría de serlo si algún día se
+    pusiera `replica identity full` en una tabla con datos personales.
+25. **Un fallo de envío por correo sigue sin dejar rastro.** WhatsApp ya lo registra (§8ter,
+    `status='error'`), pero si Resend rechaza un envío solo queda en los logs de la Edge Function:
+    en el panel no se distingue de un envío correcto.
 
 ## 13. Al terminar cualquier cambio
 
