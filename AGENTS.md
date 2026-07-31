@@ -958,15 +958,21 @@ entrar; si la cuenta no tiene ese panel, `RoleGuard` la recoloca como siempre.
 
 ### Accesos directos a las cuentas de prueba
 
-`/login` muestra, bajo el formulario, un botón por cuenta de prueba agrupado en Productors /
-Receptors / **Amb WhatsApp i doble rol** / Control (`src/lib/accessosTest.ts` +
-`components/AccessosTest.tsx`): un clic abre sesión. Dos límites que **no se pueden relajar**:
+`/login` muestra, bajo el formulario, un botón por cuenta de prueba agrupado en **Fitxes reals de
+l'equip** / Productors / Receptors / Control (`src/lib/accessosTest.ts` +
+`components/AccessosTest.tsx`): un clic abre sesión. El primer grupo va primero a propósito: es el
+único con el que se puede ejercitar el producto entero, porque son las únicas fichas con móvil
+verificado en Meta. Su título no dice «WhatsApp» ni «doble rol» porque **ninguna de las dos cosas es
+cierta para las cinco** —Anna Garreta solo tiene ficha de entidad, y Laura Masdeu no tiene
+teléfono—; la excepción de cada una va en su propia etiqueta.
+
+Dos límites que **no se pueden relajar**:
 
 1. **Ninguna cuenta con rol de plataforma.** Las de equipo (`hola+superadmin`, `hola+equip` y las
    tres reales) no están ni pueden estar: ven las 452 fichas con nombre, NIF, teléfono y dirección.
-   El grupo de WhatsApp sí enseña **fichas de personas reales del equipo**, pero por cuentas
-   *externas* creadas aparte (§9), así que cada una ve solo la suya. Se aceptó explícitamente:
-   es contacto profesional del propio equipo, no de los 345 productores externos.
+   El primer grupo sí enseña **fichas de personas reales del equipo**, pero por cuentas *externas*
+   creadas aparte (§9), así que cada una ve solo la suya. Se aceptó explícitamente: es contacto
+   profesional del propio equipo, no de los 345 productores externos.
 2. Todo el bloque va tras la variable de build **`VITE_ACCESSOS_TEST`** (§10). Con ella apagada,
    Vite pliega la constante a `false`, el `&&` queda en código muerto y el módulo con las
    contraseñas **se cae del bundle**. Verificado con `grep` sobre `dist/`, no por confianza: la

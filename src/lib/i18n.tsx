@@ -97,7 +97,7 @@ const ca: Dict = {
   'test.title': 'Usuaris de prova',
   'test.hint': 'Un clic i entres amb aquest compte. Només visible en entorns de prova.',
   'test.grp_prod': 'Productors', 'test.grp_rec': 'Receptors', 'test.grp_ctrl': 'Control',
-  'test.grp_wa': 'Amb WhatsApp i doble rol',
+  'test.grp_wa': "Fitxes reals de l'equip",
   // registre públic
   'reg.title': 'Registra’t a POMA',
   'reg.subtitle': 'Crea el compte de la teva organització. L’equip de POMA validarà l’alta abans d’activar-la.',
@@ -408,7 +408,7 @@ const es: Dict = {
   'test.title': 'Usuarios de prueba',
   'test.hint': 'Un clic y entras con esa cuenta. Solo visible en entornos de prueba.',
   'test.grp_prod': 'Productores', 'test.grp_rec': 'Receptores', 'test.grp_ctrl': 'Control',
-  'test.grp_wa': 'Con WhatsApp y doble rol',
+  'test.grp_wa': 'Fichas reales del equipo',
   'reg.title': 'Regístrate en POMA',
   'reg.subtitle': 'Crea la cuenta de tu organización. El equipo de POMA validará el alta antes de activarla.',
   'reg.rol_label': '¿Quiénes sois?', 'reg.rol_prod': 'Productor', 'reg.rol_ent': 'Entidad receptora',
