@@ -455,3 +455,12 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/recuperar-password/deno.json"
 entrypoint = "./functions/recuperar-password/index.ts"
+
+# Registro público: la llama quien todavía no tiene cuenta, así que tampoco verifica JWT.
+# Es la única función pública que ESCRIBE; el anti-abuso vive dentro (honeypot, límite
+# por IP y freno global por registros pendientes).
+[functions.registro]
+enabled = true
+verify_jwt = false
+import_map = "./functions/registro/deno.json"
+entrypoint = "./functions/registro/index.ts"

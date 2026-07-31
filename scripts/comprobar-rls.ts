@@ -17,6 +17,14 @@
 // contenido. Formato:
 //   [{ "etiqueta": "equip", "email": "...", "password": "...", "rol": "equip" }]
 //
+// El `rol` elige el bloque de la matriz que se le aplica; hay uno por caso del modelo:
+// equip · super_admin · productor · receptor · sense_rol · pendent. El último cubre el
+// REGISTRO PÚBLICO sin validar y hay que añadirlo a mano al fichero:
+//   { "etiqueta": "pendent", "email": "hola+pendent-registre@carlessanz.com",
+//     "password": "…", "rol": "pendent" }
+// Es la cuenta que crea scripts/crear-usuarios-prueba.ts con la membresía
+// `aprovacio = 'pendent'` + `activo = false` (su contraseña se imprime al crearla).
+//
 // Las escrituras solo se prueban sobre filas de prueba (codigo like 'TEST-%') y
 // siempre se revierten; si una fila fixture no existe, la comprobación se salta y
 // se avisa, en vez de tocar datos reales.
@@ -43,7 +51,7 @@ interface Cuenta {
   email: string;
   password: string;
   /** Perfil esperado: decide qué bloque de la matriz se le aplica. */
-  rol: "equip" | "super_admin" | "productor" | "receptor" | "sense_rol";
+  rol: "equip" | "super_admin" | "productor" | "receptor" | "sense_rol" | "pendent";
 }
 
 async function leerCuentas(): Promise<Cuenta[]> {
@@ -63,15 +71,25 @@ async function leerCuentas(): Promise<Cuenta[]> {
 // Matriz de comprobaciones
 // ---------------------------------------------------------------------------
 
-type Op = "leer" | "insertar" | "actualizar" | "borrar";
+type Op = "leer" | "insertar" | "actualizar" | "borrar" | "rpc";
 type Esperado = "permitir" | "denegar";
 
 interface Check {
+  /** Tabla, o nombre de la función cuando `op` es `rpc` (sale en el informe). */
   tabla: string;
   op: Op;
   esperado: Esperado;
   /** Solo para `leer`: "denegar" significa 0 filas (RLS filtra, no da error). */
   descripcion: string;
+  /** Solo para `rpc`: nombre de la función si no coincide con `tabla`. */
+  rpc?: string;
+  /**
+   * Solo para `rpc`: argumentos. El valor literal "@meva_membresia" se sustituye en
+   * tiempo de ejecución por el id de la propia membresía —y por el uuid nulo si la
+   * cuenta no ve ninguna—, para que la comprobación mida la AUTORIZACIÓN y no un
+   * "esa fila no existe" que llegaría igual con permisos de sobra.
+   */
+  args?: Record<string, unknown>;
 }
 
 // Lo que CADA rol debe poder hacer. Es la especificación ejecutable de AGENTS.md §4:
@@ -105,6 +123,8 @@ const MATRIZ: Record<Cuenta["rol"], Check[]> = {
     { tabla: "productos", op: "leer", esperado: "permitir", descripcion: "lee el catálogo (lo necesita el alta de oferta)" },
     { tabla: "excedentes", op: "insertar", esperado: "denegar", descripcion: "NO inserta ofertas a mano (van por la Edge Function)" },
     { tabla: "canalizaciones", op: "insertar", esperado: "denegar", descripcion: "NO se canaliza a sí mismo" },
+    { tabla: "membresias", op: "actualizar", esperado: "denegar", descripcion: "NO toca su propia membresía (ningún externo se auto-activa)" },
+    { tabla: "aprovar_registre", op: "rpc", esperado: "denegar", args: { p_membresia: "@meva_membresia" }, descripcion: "NO valida registros (lo corta pot_aprovar)" },
   ],
   // OJO con el receptor: «ve las ofertas compatibles» solo se cumple si existe alguna
   // oferta viva de una modalitat que le encaje (`modalitat_receptor_compat`). Un
@@ -123,6 +143,19 @@ const MATRIZ: Record<Cuenta["rol"], Check[]> = {
     { tabla: "productores", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
     { tabla: "entidades", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
     { tabla: "excedentes", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
+  ],
+  // Registro público recién enviado: membresía `aprovacio = 'pendent'` + `activo =
+  // false`. No ve NADA —`mis_productores()`/`mis_entidades()` filtran por `activo`, así
+  // que ni la ficha de su propia organización—, pero SÍ lee su fila de `membresias`: la
+  // política «membresias: meves» no filtra por activo, y esa fila es lo único que la
+  // pantalla «pendent de validació» necesita para saber que está esperando.
+  pendent: [
+    { tabla: "productores", op: "leer", esperado: "denegar", descripcion: "NO ve ninguna ficha, ni la de su organización" },
+    { tabla: "entidades", op: "leer", esperado: "denegar", descripcion: "no ve nada" },
+    { tabla: "excedentes", op: "leer", esperado: "denegar", descripcion: "NO ve ninguna oferta" },
+    { tabla: "membresias", op: "leer", esperado: "permitir", descripcion: "ve SU membresía pendiente (pantalla de espera)" },
+    { tabla: "membresias", op: "actualizar", esperado: "denegar", descripcion: "NO se activa a sí misma" },
+    { tabla: "aprovar_registre", op: "rpc", esperado: "denegar", args: { p_membresia: "@meva_membresia" }, descripcion: "NO se aprueba a sí misma (lo corta pot_aprovar)" },
   ],
 };
 
@@ -155,6 +188,26 @@ function esRechazo(error: { code?: string; message?: string } | null): boolean {
   const mensaje = (error.message ?? "").toLowerCase();
   return codigo === "42501" || codigo === "PGRST301" ||
     mensaje.includes("permission denied") || mensaje.includes("row-level security");
+}
+
+/** uuid válido pero inexistente: sirve de argumento cuando no hay fila propia que usar. */
+const UUID_NULO = "00000000-0000-0000-0000-000000000000";
+
+/** Sustituye los marcadores de los argumentos de una RPC por valores de esta sesión. */
+async function resolverArgs(
+  cliente: SupabaseClient,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const salida: Record<string, unknown> = {};
+  for (const [clave, valor] of Object.entries(args)) {
+    if (valor === "@meva_membresia") {
+      const { data } = await cliente.from("membresias").select("id").limit(1).maybeSingle();
+      salida[clave] = data?.id ?? UUID_NULO;
+    } else {
+      salida[clave] = valor;
+    }
+  }
+  return salida;
 }
 
 async function comprobar(cliente: SupabaseClient, check: Check): Promise<{ ok: boolean; detalle: string }> {
@@ -192,7 +245,29 @@ async function comprobar(cliente: SupabaseClient, check: Check): Promise<{ ok: b
   }
 
   if (check.op === "actualizar") {
-    // Solo se prueba sobre app_settings, que es idempotente: se reescribe su valor actual.
+    // `membresias`: leer la fila propia e intentar activarse. Lo corta el GRANT (42501)
+    // antes incluso de evaluar RLS —`authenticated` no tiene UPDATE sobre la tabla, §4—,
+    // y si algún día lo tuviera, la política tendría que negarlo igual.
+    if (check.tabla === "membresias") {
+      const { data: fila } = await cliente.from("membresias").select("id, activo").limit(1).maybeSingle();
+      if (!fila) return { ok: true, detalle: "sin membresía que probar (saltado)" };
+      const { error } = await cliente.from("membresias").update({ activo: true }).eq("id", fila.id);
+      if (error) {
+        // Se distingue el corte de permisos (42501, lo esperado) de un error posterior
+        // —p. ej. el check `aprovacio = 'aprovada' or activo = false`—: los dos impiden
+        // la auto-activación, pero solo el primero demuestra que el GRANT está bien.
+        return {
+          ok: check.esperado === "denegar",
+          detalle: esRechazo(error)
+            ? `rechazado (${error.code ?? "42501"})`
+            : `bloqueado por la base (${error.code ?? "?"})`,
+        };
+      }
+      // Si ha entrado, se deshace: la fila fixture tiene que seguir como estaba.
+      await cliente.from("membresias").update({ activo: fila.activo }).eq("id", fila.id);
+      return { ok: check.esperado === "permitir", detalle: "¡actualizado! (y revertido)" };
+    }
+    // app_settings es idempotente: se reescribe su valor actual.
     const { data: actual } = await cliente.from(check.tabla).select("key, value").limit(1).maybeSingle();
     if (!actual) return { ok: true, detalle: "sin fila que probar (saltado)" };
     const { error } = await cliente.from(check.tabla)
@@ -201,6 +276,23 @@ async function comprobar(cliente: SupabaseClient, check: Check): Promise<{ ok: b
       return { ok: check.esperado === "denegar", detalle: `rechazado (${error.code ?? "?"})` };
     }
     return { ok: check.esperado === "permitir", detalle: "actualizado (mismo valor)" };
+  }
+
+  if (check.op === "rpc") {
+    const funcion = check.rpc ?? check.tabla;
+    const { error } = await cliente.rpc(funcion, await resolverArgs(cliente, check.args ?? {}));
+    if (error) {
+      if (esRechazo(error)) {
+        return { ok: check.esperado === "denegar", detalle: `rechazado (${error.code ?? "42501"})` };
+      }
+      // La función no existe: la migración no está aplicada. No demuestra nada, pero
+      // tampoco puede darse por bueno.
+      if (error.code === "PGRST202") return { ok: false, detalle: "no existe (¿falta la migración?)" };
+      // Cualquier otro error significa que la autorización SÍ dejó pasar y falló algo
+      // posterior: para un "denegar" eso es exactamente lo que no debe ocurrir.
+      return { ok: check.esperado === "permitir", detalle: `error: ${error.message.slice(0, 60)}` };
+    }
+    return { ok: check.esperado === "permitir", detalle: "ejecutada" };
   }
 
   return { ok: true, detalle: "operación no implementada (saltada)" };
