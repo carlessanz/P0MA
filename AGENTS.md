@@ -1137,11 +1137,10 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
   otro valor = simula (`status='simulat'`)
 - `ALLOWED_ORIGIN` — admite **varios orígenes separados por comas** y `*` como comodín
   dentro de un origen, porque los despliegues de Vercel no tienen URL estable. Valor actual:
-  `http://localhost:5173,https://p0ma.carlessanz.com,https://pdapp-wp.carlessanz.com,https://p0ma-*-carlessanz-projects.vercel.app,https://pdapp-*-carlessanz-projects.vercel.app`.
+  `http://localhost:5173,https://p0ma.carlessanz.com,https://p0ma-*-carlessanz-projects.vercel.app`.
   **La app en producción se sirve desde el dominio propio `https://p0ma.carlessanz.com`**, que
   hubo que añadir aquí (si no, el navegador bloquea por CORS todas las llamadas a las Edge
   Functions). Si se cambia/añade dominio, actualizar este secret.
-  Los patrones `pdapp-*` son el **rastro del rename** (§10bis): se pueden podar pasados ~30 días.
   ⚠️ Un cambio de este secret **no llega a un isolate caliente**: `ALLOWED_ORIGINS` es un `const` de
   módulo que se evalúa al cargar. Hay que **redesplegar** las funciones, y no dar por buena una
   prueba hecha diez segundos después.
@@ -1158,7 +1157,7 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
 - `SUPABASE_URL` (la inyecta Supabase automáticamente)
 
 **Redirect URLs de Auth** (Management API, no config push): `site_url` = APP_URL y `uri_allow_list`
-incluye `localhost:5173`, los dos dominios y el comodín `https://p0ma-*-carlessanz-projects.vercel.app/**`.
+incluye `localhost:5173`, el dominio de producción y el comodín `https://p0ma-*-carlessanz-projects.vercel.app/**`.
 ⚠️ **Son dos matchers distintos**: el de las Edge Functions convierte `*` en `[A-Za-z0-9-]+` y compara
 orígenes completos (sin `/**`); el de GoTrue es glob y **sí** necesita el `/**` final. No copiar el
 mismo literal a los dos sitios.
@@ -1179,11 +1178,20 @@ dominio. Ahora:
 | Proyecto Vercel | `pdapp-wp` | `p0ma` (mismo `projectId`: conserva env vars, dominios e historial) |
 | **Dominio** | `pdapp-wp.carlessanz.com` | **`p0ma.carlessanz.com`** |
 
-**El dominio viejo NO se apagó: redirige con 308 permanente.** No es cortesía — el logo
-(`/logo-email.png`) y el enlace del pie de **todos los correos ya entregados** apuntan a él y viven
-para siempre en la bandeja de cada productor y entidad. Apagarlo los rompería hacia atrás y sin
-remedio; con el 308, el proxy de imágenes de Gmail sigue la redirección y se siguen viendo.
-**No borrar nunca ese DNS ni volver a crear un repo llamado `pdApp-wp`** (rompería la redirección).
+**El dominio viejo se apagó del todo el mismo día.** Se llegó a poner una redirección 308 pensando
+en el logo (`/logo-email.png`) y el enlace del pie de los correos ya entregados, que quedan
+congelados en la bandeja del destinatario para siempre. **Pero en este proyecto no había ningún
+destinatario real**: todo lo enviado hasta el 31-07-2026 fue a `hola+*@carlessanz.com` y a las
+cuatro entidades `TEST-*`, en modo test (§8). Sin correos reales que proteger, la redirección solo
+era rastro, así que se retiró el DNS, los dos dominios de Vercel (`pdapp-wp.carlessanz.com` y
+`pdapp-wp.vercel.app`) y los patrones `pdapp-*` de `ALLOWED_ORIGIN` y `uri_allow_list`.
+
+⚠️ **Ese razonamiento caduca en cuanto se salga del modo test.** A partir del primer correo a un
+productor o una entidad de verdad, apagar un dominio sí rompe su historial hacia atrás y sin
+remedio: entonces la respuesta correcta vuelve a ser la redirección permanente, no el corte.
+
+**No volver a crear un repo llamado `pdApp-wp`**: rompería la redirección 301 de GitHub, que sí
+sigue viva.
 
 Lo que **no** dependía del nombre y por eso no se tocó: el `ref` de Supabase (`uxppvaldhptdomvdhsmn`),
 la base de datos, las migraciones, la URL del webhook en Meta y los secretos de WhatsApp.
