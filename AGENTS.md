@@ -275,6 +275,7 @@ scripts/
   crear-usuarios-whatsapp.ts   5 cuentas de organización sobre las fichas REALES con móvil en
                                Meta; no crea ni toca ninguna ficha, solo enlaza (§9)
   roles-activos.ts             Interruptor del modelo de roles: on | off | estat (§4bis)
+  diagnostico-whatsapp.ts      Interroga la Graph API y distingue token caducado / número / permisos (§8ter)
   sql/rls-emergencia.sql       Paracaídas: restaura las políticas permisivas (NO es migración)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
 supabase/
@@ -391,6 +392,10 @@ para el canal **email** (Resend): si tiene filas, `enviar-email` solo manda a es
 vacía = sin límite. RLS: `authenticated` select/insert/delete. La gestiona `src/lib/emailTest.ts`
 desde el Dashboard. **Ojo**: Resend sin dominio verificado solo entrega al correo propietario de
 la cuenta, así que esta lista es la segunda barrera, no la única.
+⚠️ **Guarda un correo suelto, sin FK**: borrar una organización **no** la quita de aquí. El
+31-07-2026 quedaron dos filas huérfanas (`TEST-ENT-ANIMAL`, `TEST-PROD-PENDENT`) apuntando a
+organizaciones que ya no existían. Es inocuo —la whitelist solo *permite*, no envía— pero la lista
+deja de describir quién existe; al borrar una organización de prueba, borrar también su fila.
 
 **`app_config`** — `key` PK, `value`, `updated_at` (`20260722130000_intake_recordatorios.sql`).
 Clave/valor para secretos que un **job** necesita y que no pueden ir en git. Hoy guarda
@@ -1312,10 +1317,12 @@ las cuentas de la sección siguiente.
 
 Cada cuenta que sobra es una ficha más de ruido en los listados del equipo y en la priorización.
 
-⚠️ **Lo que costó el segundo recorte**: el arnés pierde los bloques `sense_rol` y `pendent` (pasa de
-66 a 57 comprobaciones) y ya no hay nada en la cola de «Registres pendents». Ambos se recuperan **sin
-tocar el fixture**: basta con dar de alta una organización desde `/registre`, que produce exactamente
-el caso pendiente, y añadir su credencial a `scripts/data/cuentas-prueba.json`.
+⚠️ **Lo que costó el segundo recorte** (deuda §12.32): el arnés pierde los bloques `sense_rol` y
+`pendent` (pasa de 66 a 57 comprobaciones) y ya no hay nada en la cola de «Registres pendents». Ambos
+se recuperan **sin tocar el fixture**: basta con dar de alta una organización desde `/registre`, que
+produce exactamente el caso pendiente, y añadir su credencial a `scripts/data/cuentas-prueba.json`.
+Y al borrar las dos organizaciones quedaron **dos filas huérfanas en `email_test_recipients`**, que
+no tiene FK (§4, deuda §12.33).
 
 ### Cuentas para probar WhatsApp (31-07-2026)
 
@@ -1562,8 +1569,9 @@ POMA en producción real quedan pasos de configuración y negocio.
 1. **Sin linter y sin CI.** Ya hay dos comprobaciones automáticas (`tsc` y `scripts/comprobar-rls.ts`),
    pero ninguna se ejecuta sola ni hay tests de la interfaz.
 2. ~~**No hay roles**~~ — **resuelto (2026-07-30)**: modelo desplegado y **encendido** en producción
-   (§4bis), verificado con el arnés (48/49; el único rojo era un receptor comercial sin ninguna
-   oferta de `venda` publicada, que es el comportamiento correcto). Queda de deuda: `tipo_receptor`
+   (§4bis), verificado con el arnés (48/49 **ese día**; la referencia de hoy es 56/57 —§13— y la
+   diferencia está explicada en la deuda 32). El único rojo era, y sigue siendo, un receptor
+   comercial sin ninguna oferta de `venda` publicada, que es el comportamiento correcto. Queda de deuda: `tipo_receptor`
    sigue en `null` en 111 entidades y sin él un receptor no ve ninguna oferta —es triaje manual—, y
    `usuario_roles` no tiene FK a `perfiles`, así que PostgREST no puede embeber los dos (la futura
    pantalla «Equip» tendrá que cruzarlos en cliente).
@@ -1666,6 +1674,16 @@ POMA en producción real quedan pasos de configuración y negocio.
     ahora se nota más: el menú pinta una cabecera por panel afirmando visualmente «este es tu panel de
     productor», y con dos fichas esa cabecera miente. El arreglo de verdad exige que el `id` viaje en
     la URL (`/productor/:orgId/…`) o la `organizacion` unificada del funcional (§1bis, brecha 2).
+32. **Nueve comprobaciones del arnés se quedaron sin cuenta que las recorra.** Los bloques
+    `sense_rol` (3) y `pendent` (6) de `scripts/comprobar-rls.ts` siguen escritos —son la
+    especificación de lo que esas cuentas deben *no* poder hacer— pero el arnés recorre las cuentas de
+    `cuentas-prueba.json`, y desde el recorte del 31-07-2026 ninguna tiene esos roles: por eso la
+    referencia pasó de 65/66 a **56/57**. No es un fallo de comportamiento, es **cobertura perdida**,
+    y el arnés no lo avisa (salta el bloque en silencio). Se recupera dando de alta una organización
+    por `/registre` y añadiendo su credencial con `"rol": "pendent"` (§9). Con ello, la **cola de
+    «Registres pendents» también vuelve a tener con qué probarse**, que hoy está vacía.
+33. **Borrar una organización de prueba deja rastro en `email_test_recipients`.** No hay FK: la tabla
+    guarda un correo suelto (§4). Pasó dos veces el 31-07-2026 y se limpió a mano.
 
 ## 13. Al terminar cualquier cambio
 
