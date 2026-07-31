@@ -1137,10 +1137,14 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
   otro valor = simula (`status='simulat'`)
 - `ALLOWED_ORIGIN` — admite **varios orígenes separados por comas** y `*` como comodín
   dentro de un origen, porque los despliegues de Vercel no tienen URL estable. Valor actual:
-  `http://localhost:5173,https://p0ma.carlessanz.com,https://p0ma-*-carlessanz-projects.vercel.app`.
+  `http://localhost:5173,https://p0ma.carlessanz.com,https://pdapp-wp.carlessanz.com,https://p0ma-*-carlessanz-projects.vercel.app,https://pdapp-*-carlessanz-projects.vercel.app`.
   **La app en producción se sirve desde el dominio propio `https://p0ma.carlessanz.com`**, que
   hubo que añadir aquí (si no, el navegador bloquea por CORS todas las llamadas a las Edge
   Functions). Si se cambia/añade dominio, actualizar este secret.
+  Los patrones `pdapp-*` son el **rastro del rename** (§10bis): se pueden podar pasados ~30 días.
+  ⚠️ Un cambio de este secret **no llega a un isolate caliente**: `ALLOWED_ORIGINS` es un `const` de
+  módulo que se evalúa al cargar. Hay que **redesplegar** las funciones, y no dar por buena una
+  prueba hecha diez segundos después.
 - `RECORDATORIOS_SECRET` — secreto compartido que valida `intake-recordatorios`; el **mismo**
   valor va en `app_config.recordatorios_secret` para que el job lo pueda enviar (§4, §5). Nunca
   en git.
@@ -1154,9 +1158,41 @@ local. No importa en la práctica: `npm run dev` usa `.env.local`, que apunta a 
 - `SUPABASE_URL` (la inyecta Supabase automáticamente)
 
 **Redirect URLs de Auth** (Management API, no config push): `site_url` = APP_URL y `uri_allow_list`
-incluye `localhost:5173`, la URL de producción y el comodín `https://p0ma-*-carlessanz-projects.vercel.app/**`.
+incluye `localhost:5173`, los dos dominios y el comodín `https://p0ma-*-carlessanz-projects.vercel.app/**`.
+⚠️ **Son dos matchers distintos**: el de las Edge Functions convierte `*` en `[A-Za-z0-9-]+` y compara
+orígenes completos (sin `/**`); el de GoTrue es glob y **sí** necesita el `/**` final. No copiar el
+mismo literal a los dos sitios.
 
 **Scripts**: `SUPABASE_URL` y `SB_SECRET_KEY` en el entorno.
+
+## 10bis. El rename a P0MA (31-07-2026)
+
+El proyecto se llamaba `pdApp-wp` —el nombre del producto anterior— en la carpeta, el repo, Vercel y el
+dominio. Ahora:
+
+| Qué | Antes | Ahora |
+| --- | --- | --- |
+| Carpeta | `…/Espigoladors/pdApp-wp` | `…/Espigoladors/P0MA` |
+| Repo | `carlessanz/pdApp-wp` | `carlessanz/P0MA` (GitHub redirige el viejo con 301) |
+| Paquete | `pdapp-wp` | `p0ma` (npm exige minúsculas) |
+| `project_id` (Docker local) | `pdApp-wp` | `P0MA` |
+| Proyecto Vercel | `pdapp-wp` | `p0ma` (mismo `projectId`: conserva env vars, dominios e historial) |
+| **Dominio** | `pdapp-wp.carlessanz.com` | **`p0ma.carlessanz.com`** |
+
+**El dominio viejo NO se apagó: redirige con 308 permanente.** No es cortesía — el logo
+(`/logo-email.png`) y el enlace del pie de **todos los correos ya entregados** apuntan a él y viven
+para siempre en la bandeja de cada productor y entidad. Apagarlo los rompería hacia atrás y sin
+remedio; con el 308, el proxy de imágenes de Gmail sigue la redirección y se siguen viendo.
+**No borrar nunca ese DNS ni volver a crear un repo llamado `pdApp-wp`** (rompería la redirección).
+
+Lo que **no** dependía del nombre y por eso no se tocó: el `ref` de Supabase (`uxppvaldhptdomvdhsmn`),
+la base de datos, las migraciones, la URL del webhook en Meta y los secretos de WhatsApp.
+
+⚠️ **Orden que hay que respetar si se repite**: `supabase stop` **antes** de cambiar `project_id`. Al
+revés, el CLI filtra por el nombre nuevo, no encuentra los contenedores viejos y deja doce huérfanos
+ocupando los puertos 553xx. Para limpiarlos, **filtrar por nombre**
+(`docker ps -q --filter name=_pdApp-wp`): en esta máquina conviven otros stacks de Supabase y un
+`docker stop $(docker ps -q)` se los llevaría por delante.
 
 ## 11. Comandos
 
