@@ -4,12 +4,21 @@
 // existe —porque la migración de roles no está desplegada— se cae a un contexto
 // degradado de equipo interno, que es exactamente como se ha comportado la app hasta
 // ahora. Así el despliegue del frontend y el de la base son independientes.
+//
+// EL PANEL ACTIVO SE DERIVA DE LA URL, no es estado. Antes era un `useState` que se
+// cambiaba a mano, y eso obligaba a mantenerlo en fase con la ruta desde tres sitios
+// distintos: el conmutador del menú, el `RoleGuard` (que lo corregía en pleno render) y
+// cada `carrega()`. Se desincronizaba de verdad: un `SIGNED_IN` con una cuenta de doble
+// rol devolvía el panel activo al preferido y a un receptor se le vaciaba el mercado
+// hasta que la guarda lo arreglaba. Derivándolo del pathname siempre están en fase, y
+// además se pueden pintar los dos menús a la vez sin que nada tenga que «conmutar».
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { useLocation } from 'react-router'
 import { supabase } from '../lib/supabase'
 import {
-  contextDegradat, mapejaContext, rolInicial,
+  contextDegradat, mapejaContext, rolDeLaRuta, rolInicial,
   type ContextCru, type ContextSessio, type Organitzacio, type Rol,
 } from '../lib/rols'
 import { organitzacioActiva } from '../lib/rols'
@@ -19,9 +28,8 @@ const CLAU_ROL = 'poma-rol'
 interface Valor {
   ctx: ContextSessio | null
   carregant: boolean
-  /** Panel abierto ahora mismo (relevante solo si la cuenta tiene más de uno). */
+  /** Panel que se está mirando, deducido de la URL. */
   rolActiu: Rol | null
-  setRolActiu: (rol: Rol) => void
   organitzacio: Organitzacio | null
   recarrega: () => Promise<void>
 }
@@ -31,7 +39,14 @@ const Ctx = createContext<Valor | null>(null)
 export function AppContextProvider({ children }: { children: ReactNode }) {
   const [ctx, setCtx] = useState<ContextSessio | null>(null)
   const [carregant, setCarregant] = useState(true)
-  const [rolActiu, setRol] = useState<Rol | null>(null)
+  // Último panel visitado. Ya no manda sobre nada mientras navegas: solo decide qué
+  // panel abre `/panell` al entrar.
+  const [preferit, setPreferit] = useState<Rol | null>(
+    () => localStorage.getItem(CLAU_ROL) as Rol | null,
+  )
+
+  const { pathname } = useLocation()
+  const rolRuta = rolDeLaRuta(pathname)
 
   const carrega = useCallback(async () => {
     setCarregant(true)
@@ -54,8 +69,6 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     }
 
     setCtx(nou)
-    const preferit = localStorage.getItem(CLAU_ROL) as Rol | null
-    setRol(rolInicial(nou, preferit))
     setCarregant(false)
   }, [])
 
@@ -68,19 +81,26 @@ export function AppContextProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe()
   }, [carrega])
 
-  const setRolActiu = useCallback((rol: Rol) => {
-    localStorage.setItem(CLAU_ROL, rol)
-    setRol(rol)
-  }, [])
+  // Recordar dónde se estaba, pero solo si la cuenta tiene ese panel: si no, se guardaría
+  // el panel del que la guarda acaba de expulsar y el próximo login abriría ahí.
+  useEffect(() => {
+    if (!rolRuta || !ctx?.rols.includes(rolRuta)) return
+    localStorage.setItem(CLAU_ROL, rolRuta)
+    setPreferit(rolRuta)
+  }, [rolRuta, ctx])
 
+  const rolActiu = rolRuta ?? (ctx ? rolInicial(ctx, preferit) : null)
+
+  // `rolActiu` es un primitivo a propósito: si aquí entrara el `pathname`, el valor del
+  // contexto cambiaría de identidad en cada navegación y se reabrirían los canales de
+  // Realtime que dependen de él.
   const valor = useMemo<Valor>(() => ({
     ctx,
     carregant,
     rolActiu,
-    setRolActiu,
     organitzacio: ctx ? organitzacioActiva(ctx, rolActiu) : null,
     recarrega: carrega,
-  }), [ctx, carregant, rolActiu, setRolActiu, carrega])
+  }), [ctx, carregant, rolActiu, carrega])
 
   return <Ctx.Provider value={valor}>{children}</Ctx.Provider>
 }
@@ -89,4 +109,17 @@ export function useAppContext(): Valor {
   const v = useContext(Ctx)
   if (!v) throw new Error('useAppContext debe usarse dentro de <AppContextProvider>')
   return v
+}
+
+/**
+ * La organización de un tipo concreto. La pantalla **declara** cuál quiere en vez de
+ * heredar la del panel activo: así una pantalla de productor no puede acabar leyendo la
+ * ficha de la entidad porque el panel activo fuera otro.
+ *
+ * ⚠️ Devuelve la primera de ese tipo. Una cuenta puede tener varias (`membresias` no
+ * tiene UNIQUE por `(user_id, tipo)`) y la segunda es hoy inalcanzable (deuda §12.31).
+ */
+export function useOrganitzacio(tipus: 'productor' | 'entidad'): Organitzacio | null {
+  const { ctx } = useAppContext()
+  return ctx?.organitzacions.find((o) => o.tipo === tipus) ?? null
 }

@@ -10,7 +10,7 @@ import { PlusCircle } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
 import { useT } from '../../lib/i18n'
-import { useAppContext } from '../../hooks/useAppContext'
+import { useOrganitzacio } from '../../hooks/useAppContext'
 import { kgPerOferta } from '../../lib/ofertes'
 import type { Excedente } from '../../types'
 import { Button } from '@/components/ui/button'
@@ -102,8 +102,8 @@ function FilaOferta({ o, canalitzats }: { o: Excedente; canalitzats: number }) {
 export function ProductorInici() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { organitzacio } = useAppContext()
-  const productorId = organitzacio?.tipo === 'productor' ? organitzacio.id : null
+  const organitzacio = useOrganitzacio('productor')
+  const productorId = organitzacio?.id ?? null
   const { ofertes, kg, carregant } = useMevesOfertes(productorId)
 
   const actives = ofertes.filter((o) => ACTIVES.includes(o.estado))
@@ -156,8 +156,8 @@ export function ProductorInici() {
 export function ProductorOfertes() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { organitzacio } = useAppContext()
-  const productorId = organitzacio?.tipo === 'productor' ? organitzacio.id : null
+  const organitzacio = useOrganitzacio('productor')
+  const productorId = organitzacio?.id ?? null
   const { ofertes, kg, carregant } = useMevesOfertes(productorId)
 
   return (

@@ -18,8 +18,11 @@
 //   [{ "etiqueta": "equip", "email": "...", "password": "...", "rol": "equip" }]
 //
 // El `rol` elige el bloque de la matriz que se le aplica; hay uno por caso del modelo:
-// equip · super_admin · productor · receptor · sense_rol · pendent. El último cubre el
-// REGISTRO PÚBLICO sin validar y hay que añadirlo a mano al fichero:
+// equip · super_admin · productor · receptor · sense_rol · pendent · doble_rol. El
+// último es una cuenta con ficha de productor Y de entidad (las crea
+// scripts/crear-usuarios-whatsapp.ts), que es lo que la interfaz enseña con los dos
+// menús a la vez: aquí se comprueba que ver dos paneles no es ver dos veces la base.
+// `pendent` cubre el REGISTRO PÚBLICO sin validar y hay que añadirlo a mano al fichero:
 //   { "etiqueta": "pendent", "email": "hola+pendent-registre@carlessanz.com",
 //     "password": "…", "rol": "pendent" }
 // Es la cuenta que crea scripts/crear-usuarios-prueba.ts con la membresía
@@ -51,7 +54,7 @@ interface Cuenta {
   email: string;
   password: string;
   /** Perfil esperado: decide qué bloque de la matriz se le aplica. */
-  rol: "equip" | "super_admin" | "productor" | "receptor" | "sense_rol" | "pendent";
+  rol: "equip" | "super_admin" | "productor" | "receptor" | "sense_rol" | "pendent" | "doble_rol";
 }
 
 async function leerCuentas(): Promise<Cuenta[]> {
@@ -156,6 +159,19 @@ const MATRIZ: Record<Cuenta["rol"], Check[]> = {
     { tabla: "membresias", op: "leer", esperado: "permitir", descripcion: "ve SU membresía pendiente (pantalla de espera)" },
     { tabla: "membresias", op: "actualizar", esperado: "denegar", descripcion: "NO se activa a sí misma" },
     { tabla: "aprovar_registre", op: "rpc", esperado: "denegar", args: { p_membresia: "@meva_membresia" }, descripcion: "NO se aprueba a sí misma (lo corta pot_aprovar)" },
+  ],
+  // Doble rol: una misma cuenta con ficha de productor Y de entidad. Es el caso que la
+  // interfaz enseña con los dos menús a la vez, y aquí lo que se comprueba es que ver dos
+  // paneles no es ver dos veces la base: sigue viendo SU productor y SU entidad y nada
+  // más. Sin esta fila, un fallo de aislamiento en el doble rol pasaría desapercibido.
+  doble_rol: [
+    { tabla: "productores", op: "leer", esperado: "permitir", descripcion: "ve SU productor" },
+    { tabla: "entidades", op: "leer", esperado: "permitir", descripcion: "ve SU entidad" },
+    { tabla: "wa_messages", op: "leer", esperado: "denegar", descripcion: "NO ve la mensajería" },
+    { tabla: "app_settings", op: "leer", esperado: "denegar", descripcion: "NO ve la configuración" },
+    { tabla: "membresias", op: "actualizar", esperado: "denegar", descripcion: "NO toca sus membresías" },
+    { tabla: "excedentes", op: "insertar", esperado: "denegar", descripcion: "NO inserta ofertas a mano" },
+    { tabla: "aprovar_registre", op: "rpc", esperado: "denegar", args: { p_membresia: "@meva_membresia" }, descripcion: "NO valida registros" },
   ],
 };
 

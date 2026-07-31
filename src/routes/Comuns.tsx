@@ -70,12 +70,15 @@ export function ArrelPerRol() {
  * mirando un error.
  */
 export function RoleGuard({ rol }: { rol: Rol }) {
-  const { ctx, carregant, rolActiu, setRolActiu } = useAppContext()
+  const { ctx, carregant } = useAppContext()
   if (carregant) return <Carregant />
   if (!ctx) return <Navigate to="/sense-acces" replace />
-  if (!ctx.rols.includes(rol)) return <Navigate to={rutaArrel(rolActiu)} replace />
-  // Entrar por enlace directo a un panel también cambia el panel activo.
-  if (rolActiu !== rol) setRolActiu(rol)
+  // A `/panell`, no a `rutaArrel(rolActiu)`: como el panel activo se deduce de la URL,
+  // `rolActiu` ES el rol que estamos denegando, y el redirect apuntaría a sí mismo. No
+  // daría un bucle —`Navigate` solo dispara una vez— sino algo peor: contenido en blanco
+  // sin ningún error. `/panell` es el único sitio que no pertenece a ningún panel, así
+  // que ahí sí se resuelve el destino de verdad.
+  if (!ctx.rols.includes(rol)) return <Navigate to="/panell" replace />
   return <Outlet />
 }
 

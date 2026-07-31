@@ -51,6 +51,22 @@ export const GRUPS_ACCESSOS: GrupAccessos[] = [
     ],
   },
   {
+    // Cuentas de organización sobre las fichas REALES del equipo, que son las únicas con
+    // móvil verificado en Meta: son las que permiten ejercitar WhatsApp de verdad. No son
+    // las cuentas de equipo de esas personas —esas siguen entrando por /admin—, sino
+    // cuentas externas creadas aparte (`scripts/crear-usuarios-whatsapp.ts`), así que
+    // cada una ve solo su propia ficha. Cuatro de las cinco tienen ficha de productor Y
+    // de entidad: son el caso de doble rol.
+    titolKey: 'test.grp_wa',
+    comptes: [
+      { nom: 'Productor + receptor · WhatsApp', organitzacio: 'Carles Sanz', email: 'hola+wa-carles@carlessanz.com', password: 'I4261-jWy0M-yefs7' },
+      { nom: 'Productor + receptor · WhatsApp', organitzacio: 'Sebas Sale', email: 'hola+wa-sebas@carlessanz.com', password: '4MQGu-aUxNb-6rV5s' },
+      { nom: 'Productor + receptor · WhatsApp', organitzacio: 'Raquel Diaz', email: 'hola+wa-raquel@carlessanz.com', password: 'uavod-gDiVJ-VqKT5' },
+      { nom: 'Receptor · WhatsApp', organitzacio: 'Anna Garreta', email: 'hola+wa-anna@carlessanz.com', password: 'EYFOH-HT0qK-neQbS' },
+      { nom: 'Productor + receptor · sense telèfon', organitzacio: 'Laura Masdeu', email: 'hola+wa-laura@carlessanz.com', password: 'zTfJ0-Yo9aG-doIjq' },
+    ],
+  },
+  {
     titolKey: 'test.grp_ctrl',
     comptes: [
       { nom: 'Sense cap organització', organitzacio: null, email: 'hola+senserol@carlessanz.com', password: 'WBLAi-iD5CQ-QzMBo' },

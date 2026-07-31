@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../../lib/supabase'
 import { useT } from '../../lib/i18n'
-import { useAppContext } from '../../hooks/useAppContext'
+import { useOrganitzacio } from '../../hooks/useAppContext'
 import { manifestaInteres } from '../../lib/ofertes'
 import type { Excedente, OfertaRespuesta } from '../../types'
 import { Button } from '@/components/ui/button'
@@ -22,7 +22,7 @@ import {
 
 export default function Mercat() {
   const { t } = useT()
-  const { organitzacio } = useAppContext()
+  const organitzacio = useOrganitzacio('entidad')
   const [ofertes, setOfertes] = useState<Excedente[]>([])
   const [meves, setMeves] = useState<Record<string, OfertaRespuesta>>({})
   const [carregant, setCarregant] = useState(true)
@@ -31,7 +31,7 @@ export default function Mercat() {
   const [preu, setPreu] = useState('')
   const [enviant, setEnviant] = useState(false)
 
-  const entidadId = organitzacio?.tipo === 'entidad' ? organitzacio.id : null
+  const entidadId = organitzacio?.id ?? null
 
   const carrega = useCallback(async () => {
     const [exc, resp] = await Promise.all([

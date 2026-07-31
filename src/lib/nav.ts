@@ -1,13 +1,18 @@
 // Menú declarativo por rol. Mismo espíritu que el NAV que vivía en App.tsx (array de
 // objetos con clave i18n), ampliado a grupos, iconos y contadores en vivo.
 //
-// El menú es lo que hace visible el modelo de roles: cada panel enseña solo sus
-// secciones, y el conmutador del pie del sidebar permite saltar entre paneles cuando
-// una misma cuenta es, por ejemplo, productora y receptora (§12.16).
+// El menú es lo que hace visible el modelo de roles: cada panel enseña sus secciones y,
+// cuando una misma cuenta tiene varios (productora y receptora a la vez), el sidebar los
+// pinta TODOS, uno debajo de otro y separados. Antes enseñaba uno y había que conmutar,
+// lo que además no funcionaba: el conmutador cambiaba el panel sin navegar y la guarda de
+// la ruta lo revertía en el render siguiente.
+//
+// Por eso ningún `labelKey` puede repetirse entre paneles: en modo icono la etiqueta solo
+// se ve como tooltip, y dos «La meva organització» seguidos no distinguen nada.
 
 import {
   Building2, ClipboardCheck, Handshake, History, Home, LayoutDashboard,
-  MessageSquare, Package, PlusCircle, Settings2, Store, UserCircle, Users,
+  MessageSquare, Package, PlusCircle, Settings2, Sprout, Store, UserCircle, Users,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { Rol } from './rols'
@@ -56,8 +61,10 @@ const PRODUCTOR: NavGrup[] = [
     items: [
       { to: '/productor/inici', labelKey: 'nav.home', icon: Home, end: true },
       { to: '/productor/ofertes/nova', labelKey: 'nav.new_offer', icon: PlusCircle, primari: true },
-      { to: '/productor/ofertes', labelKey: 'nav.my_offers', icon: Package, end: true },
-      { to: '/productor/perfil', labelKey: 'nav.my_org', icon: UserCircle },
+      // `Sprout` y no `Package`: el panel del equipo ya usa `Package` para «Ofertes», y
+      // con los dos menús a la vez el mismo icono dos veces no distingue nada.
+      { to: '/productor/ofertes', labelKey: 'nav.my_offers', icon: Sprout, end: true },
+      { to: '/productor/perfil', labelKey: 'nav.my_producer_org', icon: UserCircle },
     ],
   },
 ]
@@ -68,7 +75,7 @@ const RECEPTOR: NavGrup[] = [
       { to: '/receptor/mercat', labelKey: 'nav.market', icon: Store, end: true },
       { to: '/receptor/interessos', labelKey: 'nav.my_interests', icon: Handshake },
       { to: '/receptor/historic', labelKey: 'nav.history', icon: History },
-      { to: '/receptor/perfil', labelKey: 'nav.my_org', icon: UserCircle },
+      { to: '/receptor/perfil', labelKey: 'nav.my_entity', icon: Building2 },
     ],
   },
 ]

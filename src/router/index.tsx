@@ -82,7 +82,10 @@ export const router = createBrowserRouter([
                   { path: 'ofertes', element: <ProductorOfertes />, handle: { titleKey: 'nav.my_offers' } },
                   { path: 'ofertes/nova', element: <NovaOferta />, handle: { titleKey: 'nav.new_offer' } },
                   { path: 'ofertes/:id', element: <ProductorOfertaDetall />, handle: { titleKey: 'nav.my_offers' } },
-                  { path: 'perfil', element: <PerfilOrganitzacio />, handle: { titleKey: 'nav.my_org' } },
+                  // `key` explícita: los dos «perfil» tienen la misma forma de match y sin
+                  // ella React reutiliza la instancia entre paneles, arrastrando el estado
+                  // de la organización anterior.
+                  { path: 'perfil', element: <PerfilOrganitzacio key="productor" tipus="productor" />, handle: { titleKey: 'nav.my_producer_org' } },
                 ],
               },
               {
@@ -93,7 +96,7 @@ export const router = createBrowserRouter([
                   { path: 'mercat', element: <Mercat />, handle: { titleKey: 'nav.market' } },
                   { path: 'interessos', element: <Interessos />, handle: { titleKey: 'nav.my_interests' } },
                   { path: 'historic', element: <Historic />, handle: { titleKey: 'nav.history' } },
-                  { path: 'perfil', element: <PerfilOrganitzacio />, handle: { titleKey: 'nav.my_org' } },
+                  { path: 'perfil', element: <PerfilOrganitzacio key="entidad" tipus="entidad" />, handle: { titleKey: 'nav.my_entity' } },
                 ],
               },
             ],

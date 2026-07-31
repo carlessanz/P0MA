@@ -4,12 +4,22 @@
 // tiene permiso de UPDATE sobre `productores`/`entidades`: escribe por RPC con lista
 // blanca de columnas, para que nadie pueda tocar `es_test`, `codigo` o `conveni`
 // desde su panel (§4bis). Y solo el titular puede guardar.
+//
+// ⚠️ EL TIPO LLEGA POR PROP, NO SE DEDUCE. Esta misma pantalla es `/productor/perfil` y
+// `/receptor/perfil`, y react-router no pone `key` a las rutas emparejadas: las dos
+// cadenas de match tienen la misma forma, así que React reutiliza la instancia y CONSERVA
+// EL ESTADO. Antes el tipo salía de la organización activa, de modo que al saltar de un
+// panel al otro cambiaban la tabla y los campos pero `fila` seguía siendo la anterior;
+// pulsar «Desar» en esa ventana escribía en la ficha correcta los datos de la otra y
+// vaciaba todo lo que no coincidiera. El `key` del router y el `setFila(null)` de abajo
+// cierran esa ventana; la prop, además, quita el ternario que caía en «entidad» por
+// defecto.
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { supabase } from '../lib/supabase'
 import { useT } from '../lib/i18n'
-import { useAppContext } from '../hooks/useAppContext'
+import { useOrganitzacio } from '../hooks/useAppContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -44,19 +54,22 @@ const CAMPS = {
   ],
 } as const
 
-export default function PerfilOrganitzacio() {
+export default function PerfilOrganitzacio({ tipus }: { tipus: 'productor' | 'entidad' }) {
   const { t } = useT()
-  const { organitzacio } = useAppContext()
+  const organitzacio = useOrganitzacio(tipus)
   const [fila, setFila] = useState<Fila | null>(null)
   const [carregant, setCarregant] = useState(true)
   const [desant, setDesant] = useState(false)
 
-  const tipo = organitzacio?.tipo === 'productor' ? 'productor' : 'entidad'
-  const tabla = tipo === 'productor' ? 'productores' : 'entidades'
-  const camps = CAMPS[tipo]
+  const tabla = tipus === 'productor' ? 'productores' : 'entidades'
+  const camps = CAMPS[tipus]
   const potEditar = organitzacio?.rol_org === 'titular'
 
   useEffect(() => {
+    // Volver a «cargando» y soltar la fila anterior es lo que impide enseñar —y guardar—
+    // los datos de una organización con los campos de la otra.
+    setCarregant(true)
+    setFila(null)
     if (!organitzacio) { setCarregant(false); return }
     let viu = true
     void supabase.from(tabla).select('*').eq('id', organitzacio.id).maybeSingle()
@@ -74,7 +87,7 @@ export default function PerfilOrganitzacio() {
     const args: Record<string, unknown> = { p_id: organitzacio.id }
     for (const c of camps) args[c.arg] = (fila[c.clave] as string) || null
     const { error } = await supabase.rpc(
-      tipo === 'productor' ? 'actualizar_mi_productor' : 'actualizar_mi_entidad', args)
+      tipus === 'productor' ? 'actualizar_mi_productor' : 'actualizar_mi_entidad', args)
     setDesant(false)
     if (error) { toast.error(error.message); return }
     toast.success(t('rec.saved'))
@@ -87,7 +100,9 @@ export default function PerfilOrganitzacio() {
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div>
-          <CardTitle>{organitzacio.nombre ?? t('nav.my_org')}</CardTitle>
+          <CardTitle>
+            {organitzacio.nombre ?? t(tipus === 'productor' ? 'nav.my_producer_org' : 'nav.my_entity')}
+          </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
             {potEditar ? t('perf.subtitle') : t('perf.read_only')}
           </p>

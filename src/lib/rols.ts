@@ -131,6 +131,25 @@ export function rutaArrel(rol: Rol | null): string {
   }
 }
 
+/** Prefijo de ruta → panel. Es la inversa de `rutaArrel`, por eso viven juntas. */
+const PREFIX_ROL: Record<string, Rol> = {
+  equip: 'intern',
+  productor: 'productor',
+  receptor: 'receptor',
+}
+
+/**
+ * Qué panel estás mirando, según la URL. Devuelve `null` fuera de los tres paneles
+ * (`/panell`, `/sense-acces`).
+ *
+ * Se compara el **primer segmento entero**, no un `startsWith`: si algún día hubiera una
+ * ruta `/productors` (el listado del equipo vive hoy en `/equip/productors`, pero nada
+ * impide que se mueva), un prefijo la confundiría con el panel del productor.
+ */
+export function rolDeLaRuta(pathname: string): Rol | null {
+  return PREFIX_ROL[pathname.split('/')[1] ?? ''] ?? null
+}
+
 /** La organización sobre la que trabaja el panel activo (la primera de su tipo). */
 export function organitzacioActiva(ctx: ContextSessio, rol: Rol | null): Organitzacio | null {
   if (rol === 'productor') return ctx.organitzacions.find((o) => o.tipo === 'productor') ?? null

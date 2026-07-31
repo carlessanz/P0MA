@@ -216,11 +216,12 @@ src/
                                se monta más abajo, dentro de RequireSessio; §6quater)
   router/index.tsx             Mapa de rutas: públicas + privadas por rol (§6quater)
   layout/AppShell.tsx          Sidebar + barra superior + contenido + barra inferior (§2)
-  layout/AppSidebar.tsx        Menú lateral plegable y conmutador de panel
+  layout/AppSidebar.tsx        Menú lateral plegable; con varios paneles los pinta todos (§6ter)
   layout/BottomNav.tsx         Barra inferior de móvil (productor y receptor)
   layout/UserMenu.tsx          Avatar, idioma y salir
   hooks/useSessio.tsx          Sesión cruda (¿hay token?) + evento PASSWORD_RECOVERY (§6quater)
-  hooks/useAppContext.tsx      get_my_session_context(): quién eres y qué panel ves (§4bis)
+  hooks/useAppContext.tsx      get_my_session_context(): quién eres (§4bis). El panel activo se
+                               DERIVA de la URL; useOrganitzacio(tipus) para las pantallas
   hooks/use-mobile.ts          Hook del breakpoint (lo usa el sidebar de shadcn)
   routes/Comuns.tsx            ArrelApp, RequireSessio, raíz por rol, RoleGuard y «sense accés»
   routes/public/               Landing, LoginUsuaris (/login), LoginEquip (/admin),
@@ -271,6 +272,8 @@ scripts/
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
   crear-usuarios-prueba.ts     7 organizaciones ficticias TEST-* y 13 cuentas, idempotente (§9)
+  crear-usuarios-whatsapp.ts   5 cuentas de organización sobre las fichas REALES con móvil en
+                               Meta; no crea ni toca ninguna ficha, solo enlaza (§9)
   roles-activos.ts             Interruptor del modelo de roles: on | off | estat (§4bis)
   sql/rls-emergencia.sql       Paracaídas: restaura las políticas permisivas (NO es migración)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
@@ -742,10 +745,47 @@ que corresponde al momento de cierre y todavía no está implementado.
 Los tres cuelgan de `RequireSessio` y de `/panell`, que es la raíz por rol (§6quater); la raíz `/`
 es desde el 31-07-2026 la página pública.
 
-Una cuenta puede tener más de un panel (doble rol, §12.16): el pie del menú lateral conmuta entre
-ellos. Las pantallas del equipo son **los mismos componentes de siempre** (`Dashboard`, `OffersList`,
+Las pantallas del equipo son **los mismos componentes de siempre** (`Dashboard`, `OffersList`,
 `OfferDetail`, `ProducersList`, `EntitiesList`, `RecordDetail`, `ContactList`, `Conversation`,
 `Settings`), sin tocar: lo único que cambió es quién los monta y de dónde sale el `id`.
+
+### Doble rol: los paneles se ven todos a la vez (31-07-2026)
+
+Una cuenta puede tener más de un panel —productor y receptor, y también el del equipo—. Hasta hoy el
+menú enseñaba **uno cada vez**, con un conmutador en el pie. Ahora los enseña **todos**, uno debajo
+de otro, cada uno con su cabecera (`panel.producer` / `panel.receiver` / `app.team`) y separados por
+un `SidebarSeparator`. Con **un solo panel la interfaz es idéntica a antes**: sin cabeceras y con el
+nombre de la organización arriba, que es el caso de casi todas las cuentas.
+
+El conmutador, además, **no funcionaba**: solo llamaba a `setRolActiu` sin navegar, y el `RoleGuard`
+de la ruta en la que estabas lo revertía en el render siguiente. No se notaba porque hasta hoy no
+había ninguna cuenta real con doble rol.
+
+**El panel activo se deriva de la URL** (`rolDeLaRuta()` en `src/lib/rols.ts`, inversa de
+`rutaArrel()`, comparando el **primer segmento entero**, no un prefijo). Antes era un `useState` que
+tres sitios distintos tenían que mantener en fase con la ruta, y se desincronizaba de verdad: cada
+`SIGNED_IN` devolvía el panel activo al preferido, así que a una cuenta de doble rol se le vaciaba el
+mercado hasta que la guarda lo corregía. Tres consecuencias, todas deliberadas:
+
+- **`RoleGuard` ya no escribe estado durante el render** (era un efecto en render, que React 19
+  señala). Y cuando deniega, redirige a **`/panell`**, no a `rutaArrel(rolActiu)`: con el rol
+  derivado, ese destino sería la propia ruta denegada y la pantalla se quedaría **en blanco sin
+  ningún error**. `/panell` es el único sitio que no pertenece a ningún panel.
+- **Las pantallas declaran qué organización quieren** con `useOrganitzacio('productor'|'entidad')`,
+  en vez de heredar la del panel activo. Invierte el contrato: una pantalla de productor ya no puede
+  acabar leyendo la ficha de la entidad porque el panel activo fuera otro.
+- **`PerfilOrganitzacio` recibe el tipo por prop y las dos rutas llevan `key`.** Es la misma pantalla
+  en `/productor/perfil` y `/receptor/perfil`, y react-router no pone `key` a rutas de la misma
+  forma: React reutilizaba la instancia. Al saltar de una a otra cambiaban la tabla y los campos pero
+  **la fila seguía siendo la anterior**, así que pulsar «Desar» en esa ventana sobrescribía la ficha
+  de la entidad con la dirección del productor y vaciaba cinco campos. Con el conmutador roto era
+  casi inalcanzable; el menú unificado lo habría puesto a un clic.
+
+**En móvil la barra inferior sigue enseñando solo el panel de la URL** (8 secciones no caben en 5
+huecos); el menú lateral deslizante los enseña todos. Y los **contadores** del menú dependen ahora de
+*tener* el panel de equipo, no de estar mirándolo: si no, los badges quedarían en blanco justo cuando
+avisan de algo. De paso, la consulta —que se trae todos los `wa_messages`, deuda §12.5— deja de
+relanzarse cada vez que se cruza de panel.
 
 **El productor publica con el mismo cuestionario que el bot**, y no por copia: el formulario pide el
 descriptor a `GET /functions/v1/crear-oferta/campos`, que lo sirve desde `_shared/camposOferta.ts`,
@@ -919,12 +959,14 @@ entrar; si la cuenta no tiene ese panel, `RoleGuard` la recoloca como siempre.
 ### Accesos directos a las cuentas de prueba
 
 `/login` muestra, bajo el formulario, un botón por cuenta de prueba agrupado en Productors /
-Receptors / Control (`src/lib/accessosTest.ts` + `components/AccessosTest.tsx`): un clic abre sesión.
-Dos límites que **no se pueden relajar**:
+Receptors / **Amb WhatsApp i doble rol** / Control (`src/lib/accessosTest.ts` +
+`components/AccessosTest.tsx`): un clic abre sesión. Dos límites que **no se pueden relajar**:
 
-1. **Solo cuentas de las organizaciones ficticias `TEST-*`.** Las dos cuentas de equipo de prueba
-   (`hola+superadmin`, `hola+equip`) no están ni pueden estar: ven las 452 fichas reales con nombre,
-   NIF, teléfono y dirección.
+1. **Ninguna cuenta con rol de plataforma.** Las de equipo (`hola+superadmin`, `hola+equip` y las
+   tres reales) no están ni pueden estar: ven las 452 fichas con nombre, NIF, teléfono y dirección.
+   El grupo de WhatsApp sí enseña **fichas de personas reales del equipo**, pero por cuentas
+   *externas* creadas aparte (§9), así que cada una ve solo la suya. Se aceptó explícitamente:
+   es contacto profesional del propio equipo, no de los 345 productores externos.
 2. Todo el bloque va tras la variable de build **`VITE_ACCESSOS_TEST`** (§10). Con ella apagada,
    Vite pliega la constante a `false`, el `&&` queda en código muerto y el módulo con las
    contraseñas **se cae del bundle**. Verificado con `grep` sobre `dist/`, no por confianza: la
@@ -1247,6 +1289,28 @@ teléfono por defecto (`productores.phone` es UNIQUE y los números del equipo y
 ⚠️ El script es idempotente y reescribe las membresías, así que **reejecutarlo devuelve la cuenta
 pendiente a `pendent`** aunque se hubiera aprobado. Es un reset del escenario de prueba, no un fallo.
 
+### Cuentas para probar WhatsApp (31-07-2026)
+
+Ninguna de esas 13 puede usar WhatsApp: sus fichas nacen **sin teléfono** a propósito. Las únicas
+fichas con móvil verificado en Meta son las de **cinco personas del equipo de Espigoladors** (Carles
+Sanz, Sebas Sale, Raquel Diaz, Anna Garreta, Laura Masdeu), y tres de ellas solo tenían **cuenta de
+equipo** (`super_admin`/`admin`), que no puede ir a los accesos de `/login`.
+
+`scripts/crear-usuarios-whatsapp.ts` resuelve eso creando **cuentas de organización aparte**
+(`hola+wa-{carles,sebas,raquel,anna,laura}@carlessanz.com`, sin fila en `usuario_roles`) enlazadas
+por membresía a esas mismas fichas. **Nunca crea ni modifica una ficha**: solo enlaza, busca por
+correo, y si una no existe avisa y no la inventa — es lo que lo distingue del fixture, que sí crea
+organizaciones ficticias, y por eso es un script aparte.
+
+**Cuatro de las cinco quedan con doble rol real** (ficha de productor **y** de entidad), que es lo
+que ejercita el menú con los dos paneles (§6ter) y también la desambiguación del webhook (§12.16).
+Laura Masdeu no tiene teléfono ni está en la whitelist de Meta: su cuenta sirve para recorrer el
+panel, no para el canal.
+
+⚠️ Es idempotente pero **no cambia la contraseña de una cuenta que ya exista**: si se pierden, hay
+que resetearlas por la Admin API. Y el aislamiento depende de que `roles_activos` esté encendido
+(§4bis): con el interruptor apagado, estas cuentas verían toda la base como cualquier otra.
+
 ### Lo que sigue pendiente
 
 - ~~El modelo de roles existe pero está apagado~~ — **`roles_activos` está ENCENDIDO** desde el
@@ -1404,6 +1468,8 @@ deno run -A scripts/import-ara.ts             # importar los CSV maestros
 deno run -A scripts/comprobar-rls.ts          # arnés de RLS: matriz de permisos por cuenta (§4bis)
 deno run -A scripts/crear-usuarios-prueba.ts --dry-run   # simular el alta de los 12 usuarios de prueba
 deno run -A scripts/crear-usuarios-prueba.ts             # crearlos (idempotente)
+deno run -A scripts/crear-usuarios-whatsapp.ts --dry-run # simular las 5 cuentas de WhatsApp (§9)
+deno run -A scripts/crear-usuarios-whatsapp.ts           # crearlas (no toca ninguna ficha)
 
 supabase migration up --local                 # aplicar migraciones pendientes SOLO en local (no borra datos)
 ```
@@ -1498,11 +1564,14 @@ POMA en producción real quedan pasos de configuración y negocio.
     un texto corto que empiece por «sí/no» con una oferta pendiente podría clasificarse mal.
 15. La selección de plantilla de primer contacto por rol **no se ejercita en test** (siempre cae a
     `hello_world`); solo actúa en producción con `PLANTILLES_CA_APROVADES=true`.
-16. **Doble rol** productor+entidad (p. ej. Sebas Sale, Carles Sanz, altas de prueba): tablas
-    separadas sin FK, un teléfono puede estar en ambas. El webhook lo desambigua por prioridad
-    (§5), pero el **diálogo de aceptación** (SÍ → kg → preu) tiene prioridad sobre el intake: un
+16. **Doble rol** productor+entidad (Carles Sanz, Sebas Sale, Raquel Diaz, Laura Masdeu): tablas
+    separadas sin FK, un teléfono puede estar en ambas. En el **panel** ya está resuelto —se ven los
+    dos menús a la vez (§6ter)—, pero **en WhatsApp no**: el webhook lo desambigua por prioridad
+    (§5), y el **diálogo de aceptación** (SÍ → kg → preu) manda sobre el intake, así que un
     productor-entidad con una oferta `pendent` que responda verá su conversación conducida por la
-    aceptación (mientras `dialeg_pas` esté activo consume sus mensajes), no por el intake.
+    aceptación (mientras `dialeg_pas` esté activo consume sus mensajes), no por el intake. Desde el
+    31-07-2026 esto es **alcanzable de verdad**: hay cuatro cuentas de doble rol con móvil en la
+    whitelist de Meta (§9), así que es el primer sitio donde conviene mirar si algo se comporta raro.
 17. Coexisten dos gates: **`es_test`** (fuente de verdad de la app, §8) y las whitelists
     `meta_test_recipients`/`email_test_recipients` (requisito técnico de Meta en test). En test un
     destinatario debe cumplir **ambos**; se inicializaron alineados. El **Dashboard** aún gestiona
@@ -1558,15 +1627,23 @@ POMA en producción real quedan pasos de configuración y negocio.
     que esa organización aparece como una más hasta que el super_admin la borre a mano desde su
     ficha. Y la cuenta de Auth huérfana hay que borrarla aparte.
 30. **Las contraseñas de las cuentas de prueba viajan en el bundle** con `VITE_ACCESSOS_TEST=true`
-    (§6quater, §10). Está acotado —solo organizaciones ficticias `TEST-*`, nunca el equipo— y se
-    apaga con la variable, pero mientras esté encendido cualquiera que abra `/login` entra como
-    ellas. Apagarlo al dejar de ser una demo.
+    (§6quater, §10). Está acotado y se apaga con la variable, pero mientras esté encendido cualquiera
+    que abra `/login` entra como ellas. Desde el 31-07-2026 el alcance ya no es solo «organizaciones
+    ficticias»: las cinco cuentas de WhatsApp (§9) enseñan **fichas de personas reales del equipo**
+    —nombre, correo de trabajo y móvil—. Nunca cuentas con rol de plataforma, eso sigue vetado.
+    Apagarlo al dejar de ser una demo.
+31. **La interfaz solo alcanza la primera organización de cada tipo.** `membresias` no tiene UNIQUE
+    por `(user_id, tipo)`, así que una cuenta puede ser titular de dos productores; `organitzacioActiva`
+    y `useOrganitzacio` hacen `find`, o sea que **la segunda es inalcanzable**. Ya pasaba antes, pero
+    ahora se nota más: el menú pinta una cabecera por panel afirmando visualmente «este es tu panel de
+    productor», y con dos fichas esa cabecera miente. El arreglo de verdad exige que el `id` viaje en
+    la URL (`/productor/:orgId/…`) o la `organizacion` unificada del funcional (§1bis, brecha 2).
 
 ## 13. Al terminar cualquier cambio
 
 1. `npm run build` en verde.
 2. `deno run -A scripts/comprobar-rls.ts` si el cambio toca datos, políticas o roles. Referencia
-   actual: **58/59** (el rojo conocido es un receptor comercial sin ninguna oferta de `venda`
+   actual: **65/66** (el rojo conocido es un receptor comercial sin ninguna oferta de `venda`
    publicada, que es el comportamiento correcto). Cualquier otro rojo es una regresión.
 3. **Actualizar este fichero** si cambió arquitectura, datos, contratos, convenciones,
    comandos o deuda técnica; y **§1bis + su tabla de correspondencia** si cambió el alcance

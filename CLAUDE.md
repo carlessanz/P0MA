@@ -48,7 +48,7 @@ Actualiza `AGENTS.md` cuando cambie cualquiera de estas cosas:
 
 1. `npm run build` (corre `tsc` en modo `strict`).
 2. `deno run -A scripts/comprobar-rls.ts` si el cambio toca datos, políticas o roles: comprueba los
-   permisos de verdad, contra la base y con sesiones reales. Hoy está en **58/59** (el único rojo es
+   permisos de verdad, contra la base y con sesiones reales. Hoy está en **65/66** (el único rojo es
    conocido y correcto: un receptor comercial sin ninguna oferta de `venda` publicada).
 3. `AGENTS.md` actualizado.
 4. Commit en castellano.

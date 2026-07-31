@@ -38,14 +38,25 @@ export default function AppShell() {
   const [comptadors, setComptadors] = useState<{ aprovacions?: number; missatges?: number }>({})
 
   const handle = (matches[matches.length - 1]?.handle ?? {}) as RouteHandle
+  // La barra inferior enseña SOLO el panel en el que estás, aunque el menú lateral los
+  // enseñe todos: con dos paneles serían 8 secciones y ahí abajo no caben. Aquí
+  // `rolActiu` es siempre el de la URL —las tres únicas ramas hijas de AppShell son
+  // /equip, /productor y /receptor—, así que nunca pasa de 4.
   const grups = navPerRol(rolActiu)
   const items = itemsPlans(grups)
   const ambBarraInferior = rolActiu !== 'intern' && items.length > 0 && items.length <= 5
 
   // Contadores del menú del equipo. Se calculan una vez aquí y se reparten, para no
   // repetir la consulta en cada sección.
+  //
+  // Depende de TENER el panel de equipo, no de estar mirándolo: desde que el menú los
+  // enseña todos a la vez, el grupo del equipo se ve también desde /productor y sus
+  // badges quedarían en blanco justo cuando avisan de algo. Además es un booleano
+  // estable, así que la consulta —que se trae todos los wa_messages, deuda §12.5— deja
+  // de relanzarse cada vez que se cruza de un panel a otro.
+  const esIntern = ctx?.rols.includes('intern') ?? false
   useEffect(() => {
-    if (rolActiu !== 'intern') { setComptadors({}); return }
+    if (!esIntern) { setComptadors({}); return }
     let viu = true
     void (async () => {
       const [respostes, registres, missatges] = await Promise.all([
@@ -68,7 +79,7 @@ export default function AppShell() {
       })
     })()
     return () => { viu = false }
-  }, [rolActiu])
+  }, [esIntern])
 
   return (
     <SidebarProvider className="h-dvh min-h-0 overflow-hidden">

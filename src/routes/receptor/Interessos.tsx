@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { cn } from '../../lib/utils'
 import { useT } from '../../lib/i18n'
-import { useAppContext } from '../../hooks/useAppContext'
+import { useOrganitzacio } from '../../hooks/useAppContext'
 import type { OfertaRespuesta } from '../../types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -43,10 +43,10 @@ function classeAprovacio(a: string): string {
 
 export function Interessos() {
   const { t } = useT()
-  const { organitzacio } = useAppContext()
+  const organitzacio = useOrganitzacio('entidad')
   const [files, setFiles] = useState<AmbOferta[]>([])
   const [carregant, setCarregant] = useState(true)
-  const entidadId = organitzacio?.tipo === 'entidad' ? organitzacio.id : null
+  const entidadId = organitzacio?.id ?? null
 
   const carrega = useCallback(async () => {
     if (!entidadId) { setCarregant(false); return }
@@ -111,10 +111,10 @@ export function Interessos() {
 
 export function Historic() {
   const { t } = useT()
-  const { organitzacio } = useAppContext()
+  const organitzacio = useOrganitzacio('entidad')
   const [files, setFiles] = useState<CanalAmbOferta[]>([])
   const [carregant, setCarregant] = useState(true)
-  const entidadId = organitzacio?.tipo === 'entidad' ? organitzacio.id : null
+  const entidadId = organitzacio?.id ?? null
 
   useEffect(() => {
     if (!entidadId) { setCarregant(false); return }

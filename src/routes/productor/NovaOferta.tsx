@@ -13,7 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { useT } from '../../lib/i18n'
-import { useAppContext } from '../../hooks/useAppContext'
+import { useOrganitzacio } from '../../hooks/useAppContext'
 import { carregaCamps, creaOferta } from '../../lib/ofertes'
 import type { CampoOferta, CatalogosOferta } from '../../lib/ofertes'
 import { Button } from '@/components/ui/button'
@@ -32,7 +32,7 @@ function aplica(campo: CampoOferta, datos: Datos): boolean {
 export default function NovaOferta() {
   const { t } = useT()
   const navigate = useNavigate()
-  const { organitzacio } = useAppContext()
+  const organitzacio = useOrganitzacio('productor')
   const [campos, setCampos] = useState<CampoOferta[]>([])
   const [catalogos, setCatalogos] = useState<CatalogosOferta | null>(null)
   const [datos, setDatos] = useState<Datos>({})
@@ -40,7 +40,7 @@ export default function NovaOferta() {
   const [enviant, setEnviant] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const productorId = organitzacio?.tipo === 'productor' ? organitzacio.id : null
+  const productorId = organitzacio?.id ?? null
 
   useEffect(() => {
     if (!productorId) { setCarregant(false); return }
