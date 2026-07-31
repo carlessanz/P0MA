@@ -270,7 +270,7 @@ scripts/
   crear-usuario.ts             Alta de cuentas por la Admin API (no envía correos)
   set-config.ts                Escribe una clave en app_config con la service key (p. ej. recordatorios_secret)
   comprobar-rls.ts             Arnés de RLS: matriz (cuenta, tabla, operación) → PASS/FAIL (§4bis)
-  crear-usuarios-prueba.ts     6 organizaciones ficticias TEST-* y 12 cuentas, idempotente (§9)
+  crear-usuarios-prueba.ts     7 organizaciones ficticias TEST-* y 13 cuentas, idempotente (§9)
   roles-activos.ts             Interruptor del modelo de roles: on | off | estat (§4bis)
   sql/rls-emergencia.sql       Paracaídas: restaura las políticas permisivas (NO es migración)
   data/                        Los CSV — IGNORADO POR GIT (datos personales, §7)
@@ -1450,6 +1450,18 @@ POMA en producción real quedan pasos de configuración y negocio.
 5. **Reexportar `prod_actius.csv`** con la columna Producte para rellenar `productos_habituales`
    (hoy vacío: el intake ofrece el catálogo completo por familias).
 6. **Paso a producción de Meta**: número real, verificación de empresa, método de pago.
+7. **Apagar la demo**: `VITE_ACCESSOS_TEST=false` en Vercel **y redesplegar** (es variable de build,
+   no basta con cambiarla), y comprobar con `grep` sobre `dist/` que ninguna contraseña sobrevive.
+   Va con los otros interruptores de producción —modo test (§8) y whitelists de Meta/correo (§4)—,
+   pero es independiente de ellos: se puede apagar antes, en cuanto el equipo deje de enseñar la
+   aplicación a terceros.
+8. **Avisar a mano de que se ha validado un alta.** Hoy nada notifica la aprobación (deuda §12.27),
+   así que hace falta un procedimiento del equipo —qué se le dice a la persona y por qué canal—
+   hasta que exista la notificación automática. Igual con un **duplicado detectado en la cola**: la
+   función rechaza el alta a propósito, pero vincular esa cuenta con la ficha que ya existe exige
+   `service_role` y no hay procedimiento escrito.
+9. **Checklist de ficha antes de aprobar una entidad**: sin `estat` no entra en la priorización y
+   sin `tipo_receptor` no ve ninguna oferta. Hoy es conocimiento tácito del equipo.
 
 **Deuda técnica:**
 
