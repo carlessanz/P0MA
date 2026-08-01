@@ -28,6 +28,13 @@ equipo y accesos separados** para usuarios y equipo); falta el grueso del modelo
 Ambos documentos de `docs/` están **fuera de git** (§7). Para el detalle de negocio mandan esos
 funcionales; para el **estado real construido**, manda `AGENTS.md`.
 
+## Rama de trabajo
+
+**Trabaja SIEMPRE sobre la rama `dev`, siempre la misma.** No crees ramas nuevas por
+tarea ni con nombres generados: todo el desarrollo va a `dev`. Si `dev` no existe en local,
+créala desde la default (`git checkout -B dev origin/main`). Commit y push van a `dev`
+(`git push -u origin dev`).
+
 ## Regla permanente
 
 **Cada modificación debe dejar `AGENTS.md` al día en el mismo cambio.** Al importarse
