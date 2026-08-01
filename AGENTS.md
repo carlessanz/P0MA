@@ -183,7 +183,10 @@ ninguna pantalla necesita padding inferior y el composer del chat nunca queda de
 
 ⚠️ **Contrato de alturas**: el shell es una columna flex `h-dvh overflow-hidden`; `main` es
 `min-h-0 flex-1` y scrollea él, salvo en las rutas marcadas `fullBleed` (Mensajería), que gestionan
-su propio alto. **Ninguna pantalla vuelve a escribir `h-dvh`.**
+su propio alto. **Ninguna pantalla vuelve a escribir `h-dvh`.** Hay un tercer flag de layout en el
+`RouteHandle`, **`ample`** (no confundir con `fullBleed`): cambia el contenedor de `main` de
+`max-w-6xl px-4` a `w-[96%] px-2` y lo llevan los tres listados del equipo (`productors`, `entitats`,
+`ofertes`), que necesitan más ancho.
 
 **PWA instalable** (`vite-plugin-pwa`, `generateSW`): manifest, iconos 192/512 + *maskable*
 (generados desde `public/logo-poma.svg`), `apple-touch-icon` y los metas de iOS —que no lee el
@@ -215,8 +218,9 @@ expresar eso.
 en tabla con `overflow-x-auto` (scroll horizontal en móvil); los **detalles/CRUD** usan grids
 `sm:grid-cols-2`. La **mensajería** usa patrón **lista↔conversación**: en móvil la lista ocupa toda
 la pantalla y, al elegir un contacto, la conversación pasa a pantalla completa con botón «atrás»
-(`Conversation` recibe `onBack`); en escritorio conviven las dos columnas. La vista de mensajería
-usa `h-dvh` para que el composer no quede bajo la barra del navegador móvil.
+(`Conversation` recibe `onBack`); en escritorio conviven las dos columnas. La mensajería **ya no
+escribe `h-dvh` propio** (era texto residual de la arquitectura anterior, contradecía el contrato de
+alturas de arriba): su alto lo aporta el shell porque su ruta va marcada `fullBleed` (§6ter).
 
 **Tres reglas de móvil que se comprobaron midiendo, no leyendo** (2026-08-01; auditoría con
 Playwright a 320/360/390 px sobre las 11 rutas, públicas y privadas — **0 px de desbordamiento
@@ -389,7 +393,7 @@ firmas. Relación **`excedentes` 1—N `canalizaciones`** (una oferta, varias en
 
 **`oferta_respuestas`** — flujo de **aceptación** (`20260723100000_oferta_respuestas.sql`; ampliada
 en `20260723130000_aceptacion_ofertas.sql`): `excedente_id` (FK, `on delete cascade`), `entidad_id`
-(FK, `on delete set null`), `telefono`, `canal` (`whatsapp`·`email`), `mensaje_respuesta`,
+(FK, `on delete set null`), `telefono`, `canal` (`whatsapp`·`email`·`panel`), `mensaje_respuesta`,
 `enviado_at`, `respondido_at`, `unique (excedente_id, entidad_id)` (reenviar actualiza, no duplica)
 e índice `(telefono, estado)`. Tiene **dos ejes**: **`estado`** (`pendent`·`acceptada`·`rebutjada`) =
 respuesta de la **entidad**; **`aprovacio`** (`pendent`·`aprovada`·`rebutjada`) = decisión del
@@ -554,6 +558,11 @@ antes** (cualquier autenticado lo puede todo), y encenderlo es el único paso qu
 revierte con `deno run -A scripts/roles-activos.ts off`, en segundos, sin desplegar y sin cerrar
 sesiones (el rol se consulta en cada política, no viaja en el JWT).
 
+⚠️ **El «ENCENDIDO» del recuadro es estado de la base remota, no del repo.** La migración
+`20260730090000` inserta `roles_activos = 'false'`, así que **cualquier entorno recreado desde las
+migraciones nace apagado** (permisivo) y se enciende fuera de git con el script. El estado real solo
+se comprueba con `deno run -A scripts/roles-activos.ts estat`, no leyendo el repo.
+
 **Quién es quién hoy**: `hola@carlessanz.com` es `super_admin`; las otras dos cuentas del equipo son
 `admin`. Consecuencia práctica: **solo el super_admin puede apagar el modo test** o borrar fichas.
 
@@ -569,11 +578,19 @@ public, anon`. Son `security definer` para poder consultarse **desde una políti
 
 `roles_activos()` · `es_intern()` · `pot_aprovar()` · `es_super_admin()` · `mi_rol()` ·
 `mis_productores()` · `mis_entidades()` · `soc_titular(tipo, org)` ·
-**`get_my_session_context()`** (una llamada al entrar: rol, `vista_defecto` y organizaciones, para
-decidir qué panel se pinta; desde `20260731100000` devuelve además **`registre_pendent`** y
-**`registre_rebutjat`** — sin ellas la interfaz no podría distinguir a quien espera validación de
-quien simplemente no tiene organización: los dos llegan con `organizaciones = []`, porque la
-membresía pendiente es `activo = false`).
+**`get_my_session_context()`** (una llamada al entrar: rol, `vista_defecto` y organizaciones; desde
+`20260731100000` devuelve además **`registre_pendent`** y **`registre_rebutjat`** — sin ellas la
+interfaz no podría distinguir a quien espera validación de quien simplemente no tiene organización:
+los dos llegan con `organizaciones = []`, porque la membresía pendiente es `activo = false`).
+
+⚠️ **Dos matices del contexto que el resto de la doc no capturaba** (verificado 2026-08-01):
+- `get_my_session_context()` calcula `es_intern`/`pot_aprovar`/`es_super_admin` con **`mi_rol()`**
+  (rol real, **sin** el fail-open de los helpers homónimos de RLS). Consecuencia deliberada: con el
+  interruptor apagado la **base** es permisiva (todo autenticado puede todo), pero la **interfaz**
+  enseña el panel externo a una cuenta sin fila en `usuario_roles`.
+- **`vista_defecto` se calcula pero el frontend hoy lo ignora**: `mapejaContext()` (`rols.ts`) no lo
+  copia al `ContextSessio`, y el panel inicial de `/panell` se decide con el `preferit` de
+  `localStorage` y `ctx.rols[0]`. Es un campo servido y descartado (deuda técnica 38).
 
 ⚠️ `get_my_session_context()` está marcada **`parallel restricted`** (`20260731080000`). Recrearla
 con `create or replace` **reescribe todos los atributos**, así que hay que repetir esa marca de
@@ -592,7 +609,7 @@ funciones, no políticas:
 | --- | --- |
 | `manifestar_interes(excedente, entidad, kg, preu, caixes)` | El receptor acepta desde el panel. Deja la fila igual que el diálogo de WhatsApp (`acceptada` + `aprovacio='pendent'`, `canal='panel'`), así **cae en la misma cola de aprobación** que ya existe. Valida compatibilidad y `preu_minim` |
 | `aprovar_resposta(resposta, kg, preu, motiu)` | Aprobar y canalizar **en una transacción** (hoy `OfferDetail` hace 3-4 llamadas sueltas). Exige `pot_aprovar()` |
-| `actualizar_mi_productor(…)` / `actualizar_mi_entidad(…)` | Autoedición con **lista blanca**: nunca `es_test`, `activo`, `codigo`, `conveni`, `prioritat`, `estat` |
+| `actualizar_mi_productor(…)` / `actualizar_mi_entidad(…)` | Autoedición con **lista blanca**: nunca `es_test`, `activo`, `codigo`, `conveni`, `prioritat`, `estat`, `gestio` |
 | `cancelar_meva_oferta(excedente, motiu)` | El productor cancela la suya. Editarla no: el `texto_oferta` ya circuló |
 | `aprovar_registre(membresia)` / `rebutjar_registre(membresia, motiu)` | Validan un alta del registro público (`20260731100000`). Exigen `pot_aprovar()` (42501), bloquean la fila con `for update` y solo actúan sobre `pendent` (22023). **Rechazar no borra nada**: queda la auditoría y la persona ve el motivo |
 
@@ -608,8 +625,10 @@ alguien conceda ese GRANT para, pongamos, dejar que un titular cambie el `rol_or
 `service_role` tiene **`BYPASSRLS`**: las Edge Functions no se ven afectadas por RLS, ni para bien
 ni para mal. Sin una comprobación propia, cualquier cuenta con sesión podría enviar WhatsApp o
 priorizar entidades. `_shared/autorizacion.ts` (`contextoUsuario`, `exigirEquipo`) se aplica en
-**`whatsapp-send`**, **`enviar-email`** y **`priorizar-entidades`**, y respeta el mismo interruptor
-que la base. Devuelve `401 unauthorized` sin sesión y `403 forbidden` si no es del equipo.
+**`whatsapp-send`**, **`enviar-email`**, **`priorizar-entidades`** y también **`enviar-acceso`**, y
+respeta el mismo interruptor que la base. Devuelve `401 unauthorized` sin sesión y `403 forbidden` si
+no es del equipo. ⚠️ `contextoUsuario` trata una cuenta con `perfiles.activo=false` como **sin
+sesión** → `401` (no `403`).
 
 ### Verificación
 
@@ -650,7 +669,10 @@ enganchada en el webhook **antes del intake y con prioridad sobre él**. Trabaja
 conduce un **diálogo corto**: un **sí** arranca `dialeg_pas='kg'` («quants kg vols?»); tras el número,
 si la modalitat es `venda`/`maquila` con `preu_minim` pide **confirmar el preu** con botones
 (`accept:preu_*`) y finaliza dejando `estado='acceptada'`, `kg_solicitados`, `preu_ofert` y
-`aprovacio='pendent'`; un **no** claro (en cualquier paso) pasa a `rebutjada`. **Mientras el diálogo
+`aprovacio='pendent'`; un **no** claro en el paso inicial o en el paso `kg` pasa a `rebutjada`.
+⚠️ **Rechazar el preu mínimo NO marca `rebutjada`**: la fila queda `estado='acceptada'` con
+`preu_ofert=null` y `mensaje_respuesta="L'entitat no accepta el preu mínim (a revisar per l'equip)."`,
+y sigue en la cola de aprobación para que el equipo decida. **Mientras el diálogo
 está en curso la fila sigue `pendent`** (así el emparejamiento la sigue encontrando). Solo consume
 interactivos con prefijo `accept:` (los del intake, `familia:`…, se dejan pasar). **Resuelve el doble
 rol**: un número productor **y** entidad con oferta pendiente que contesta se atiende aquí; sin oferta
@@ -724,7 +746,8 @@ Peculiaridades verificadas de los datos, todas manejadas por el script:
 
 ## 6bis. El intake conversacional
 
-Trece pasos (más uno condicional): `familia` → `producte` → `varietat` → `kg` → `caixes` →
+Catorce pasos (13 fijos + 1 condicional; `PASOS`/`CAMPOS` en `_shared/camposOferta.ts` —el comentario
+de `intake.ts` que dice «trece» es engañoso): `familia` → `producte` → `varietat` → `kg` → `caixes` →
 `tipus_caixa` → `retorn` → `ubicacio` → `disponible_fins` → `horari` → `modalitat` →
 **`preu_minim`** (solo si `modalitat` es `venda`/`maquila`; en `donació` se salta) → `causa` →
 `observacions`. Las opciones salen **siempre de las tablas** (`productos`, `causas`), nunca
@@ -749,7 +772,9 @@ opciones y la décima es "Més…". Hace falta porque hay **12 familias** y cuat
 
 **Casos que el motor ya contempla:**
 
-- Respuesta que no encaja: se repite la pregunta, máximo 2 veces, y luego se ofrece cancelar.
+- Respuesta que no encaja: se repite la pregunta hasta 2 veces; a partir del 3.er fallo el motor
+  responde el texto «Escriu Stop per aturar». ⚠️ **No** es un botón de cancelar, y **no** resetea el
+  contador de intentos: si se sigue fallando, repite ese texto en bucle hasta una respuesta válida.
 - **Cancelar en cualquier momento**: la palabra **`Stop`** (alias ocultos `CANCELAR`/`CANCEL·LAR`) **o** el botón
   `intake:cancelar` (del recordatorio) borran la sesión de `intake_sessions`.
 - **Recordatorio a los 10 min** de inactividad: aviso «Continuar / Cancel·lar» (§5). *Continuar*
@@ -759,6 +784,14 @@ opciones y la décima es "Més…". Hace falta porque hay **12 familias** y cuat
   pide el enlace de Google Maps por texto. El enlace crea una `productor_ubicaciones` que
   hereda el municipio de la ficha.
 - Cantidad en unidades o manats: se convierte con `factores_conversion` si hay factor.
+- ⚠️ **`tipus_caixa` y `retorn` son opcionales en el panel pero obligatorios en el intake por
+  WhatsApp.** Son `obligatorio:false` en `camposOferta.ts`, pero el intake los pide con lista de
+  opciones y **sin fila «saltar»**, así que por WhatsApp el productor no puede avanzar sin pulsar una.
+  Las dos interfaces del «mismo cuestionario» divergen en esto.
+- ⚠️ **Callejón en `ubicacio` cuando SÍ hay ubicaciones.** Se ofrece la fila «Comparteix un punt»
+  (`ubicacio:nova`), pero `interpretar()` la excluye y exige un enlace de Maps por texto: pulsarla
+  (sin texto) cuenta como fallo y **re-muestra la misma lista** en vez de pedir el enlace. El caso
+  «sin ubicaciones» (pedir el enlace por texto) sí funciona.
 
 **Identificador**: `E-AAMMDD-XXX-YYY-N` (3 letras del productor, 3 del producto, N = orden
 del día). Ejemplo real: `E-260721-CAR-TOM-1`.
@@ -779,7 +812,7 @@ que corresponde al momento de cierre y todavía no está implementado.
 | --- | --- | --- |
 | **Equip** (`intern`) | `/equip/tauler · ofertes[/:id] · aprovacions · productors[/:id] · entitats[/:id] · missatgeria[/:phone] · configuracio` | Todo lo que ya existía, más la **cola global de aprobaciones** |
 | **Productor** | `/productor/inici · ofertes · ofertes/nova · ofertes/:id · perfil` | Sus ofertas, su progreso y el **alta con el mismo cuestionario del intake** |
-| **Receptor** | `/receptor/mercat · interessos · historic · perfil` | Las ofertas **compatibles con su `tipo_receptor`**, su interés y su histórico |
+| **Receptor** | `/receptor/mercat · interessos · historic · perfil` | Las ofertas **compatibles con su `tipo_receptor`** (el filtro NO es de cliente: lo aplica la RLS de `excedentes` con la matriz `modalitat_receptor_compat`, §4bis), su interés y su histórico |
 
 Los tres cuelgan de `RequireSessio` y de `/panell`, que es la raíz por rol (§6quater); la raíz `/`
 es desde el 31-07-2026 la página pública.
@@ -866,8 +899,9 @@ para productores como para entidades.
 **Envío de la oferta y feedback.** Los botones **«WhatsApp»/«Correu»** del detalle son **siempre
 clicables** (rollover) y **cada clic da un toast**: enviado, o el motivo exacto (sense telèfon/correu,
 opt-in, `es_test` amb mode test, finestra tancada). El gate `es_test` del **cliente** ahora **respeta
-`test_mode`** (`getTestMode()`): con el modo test apagado (producción) se puede enviar a cualquier
-entidad; el servidor lo revalida (§8). El envío intenta primero el **texto de la oferta**
+`test_mode`**: con el modo test apagado (producción) se puede enviar a cualquier entidad; el servidor
+lo revalida (§8). ⚠️ `OfferDetail` toma ese `test_mode` del `modo_test` que devuelve
+`priorizar-entidades` (no de `getTestMode()`, que sí usan otras pantallas). El envío intenta primero el **texto de la oferta**
 (`texto_oferta`) dentro de la ventana de 24 h (gratis). Si el servidor responde `window_closed`, se
 **ofrece enviarla como plantilla `oferta_excedent`** (acción explícita en el toast, porque tiene
 coste), única vía de Meta para llegar a un receptor que no ha escrito: `enviarOfertaPlantilla` asegura
@@ -929,9 +963,12 @@ fresco + entidad que acepta frescos +2; `prioritat` suma `max(0, 3 - prioritat)`
 `estat` (6 valores reales, no 2): `Signat` puntúa arriba; las tres variantes `Pendent*` van al
 final con aviso; `No procedeix` y sin estado se **excluyen**. Sin `opt_in` no se excluye, se
 marca (no se le puede enviar por API). Sobre ese ranking, `OfferDetail` aplica un **reorden de
-presentación estable**: primero las **contactables** (es_test + opt-in + teléfono, o es_test +
-email), sin tocar la puntuación del servidor; y añade a la línea de motivos «No és usuari de prova»
-en las que no lo son, para que se vea *por qué* el botón está gris.
+presentación estable**: primero las **contactables**, sin tocar la puntuación del servidor; y añade a
+la línea de motivos «No és usuari de prova» en las que no lo son, para que se vea *por qué* el botón
+está gris. ⚠️ La condición real de «contactable» es `(!testMode || es_test) && canal !== 'cap'`
+(`OfferDetail.tsx`): se apoya en el `canal` que decide el servidor (§8bis), no en opt-in+teléfono/email
+por separado, y con el modo test **apagado todas** son contactables. El `testMode` sale del `modo_test`
+que devuelve `priorizar-entidades`, no de `getTestMode()`.
 
 **Opt-in de entidades**: las 111 tienen `opt_in=false`. Se marca a mano con un toggle en el
 detalle (mecánica de PoC). En producción se combinará con el ALTA por WhatsApp.
@@ -1094,6 +1131,12 @@ llega a simularse):
 
 Contacto inexistente → `404 unknown_contact`. Sin sesión válida → `401 unauthorized`.
 
+⚠️ **Orden real de las comprobaciones en `whatsapp-send`**: los gates `403` van **antes** que el
+`404`/`409` de esta tabla. Secuencia: `exigirEquipo` (`401`) → validación de campos (`400`) → gate
+`es_test` (`403 no_test_user`) → gate `meta_test_recipients` (`403 no_test_recipient`) → contacto
+inexistente (`404`) → ventana/opt-in (`409`/`403`). Un destinatario existente pero no-test recibe
+`403`, nunca llega al `404`.
+
 **Modo test global + gate `es_test`** — **fuente de verdad de la app** para permitir el envío,
 **independiente de la fase de Meta**. Un interruptor global, **`app_settings.test_mode`** (default
 `'true'`, editable desde **Configuración**, §6ter), decide si se aplica el gate: con el **modo test
@@ -1220,7 +1263,7 @@ más dos Edge Functions con sus propios controles (`recuperar-password` y `regis
 | --- | --- |
 | Datos (PostgREST) | RLS + GRANT sobre `authenticated`. `anon` no tiene ningún privilegio: responde `42501 permission denied` |
 | **Rol y organización** | Tablas `usuario_roles` y `membresias` (§4bis). El rol **no viaja en el JWT**: se consulta en cada política, así que desactivar una cuenta corta el acceso al instante en vez de esperar a que caduque el token |
-| **Edge Functions con JWT** | `exigirEquipo()` de `_shared/autorizacion.ts` en `whatsapp-send`, `enviar-email` y `priorizar-entidades`. Hace falta porque corren con `service_role`, que **ignora RLS** (§4bis) |
+| **Edge Functions con JWT** | `exigirEquipo()` de `_shared/autorizacion.ts` en `whatsapp-send`, `enviar-email`, `priorizar-entidades` y `enviar-acceso`. Hace falta porque corren con `service_role`, que **ignora RLS** (§4bis) |
 | `whatsapp-send` | Desplegada **con** verificación de JWT (sin `--no-verify-jwt`) y además comprueba `getUser(token)` |
 | `whatsapp-webhook` | Sigue con `--no-verify-jwt` porque Meta no envía JWT; se valida la firma `X-Hub-Signature-256` |
 | Alta de cuentas | Admin API (`scripts/crear-usuario.ts`) **o** la Edge Function pública `registro`, que crea la cuenta con la membresía **PENDIENTE**: el acceso real lo concede el equipo al aprobar. `enable_signup` sigue `false` y así debe seguir — la Admin API lo ignora, y así el alta pasa siempre por nuestro código |
@@ -1272,10 +1315,15 @@ atrás). Por eso `OfferDetail` ya no construye HTML de correo: pasa `plantilla` 
 
 ### Enlaces de acceso (`enviar-acceso`)
 
-`POST /functions/v1/enviar-acceso { email, canal }` genera el enlace con
+`POST /functions/v1/enviar-acceso { email, canal? }` genera el enlace con
 `admin.generateLink({type:'magiclink'})` —Admin API, **no** manda nada— y lo envía por Resend, igual
 que `recuperar-password`. Como el `redirectTo` es exactamente `APP_URL`, que ya está en
 `uri_allow_list`, **no hay que tocar Auth por Management API** (§ arriba).
+
+**Está restringida al equipo** (`exigirEquipo`: `401`/`403`) y respeta el gate de cuenta (`403
+no_test_user` con el modo test activo, §8). `canal` es **opcional y por defecto `'auto'`**: decide con
+la política de `_shared/canal.ts` (§8bis), admite `'ambos'`, y ante fallo de WhatsApp **cae a correo**,
+devolviendo `motiu_canal`.
 
 **Por correo va el enlace; por WhatsApp, solo el código de 6 cifras.** Un enlace mágico es una
 credencial al portador, y `sendText()` guarda el cuerpo en `wa_messages`, que el equipo lee desde
@@ -1616,9 +1664,11 @@ POMA en producción real quedan pasos de configuración y negocio.
    técnico lo normaliza en el panel y hasta entonces el job de vencidas no actúa sobre ese excedente.
 5. `ProducersList` **y `ContactList`** cargan **todos** los `wa_messages` sin filtro ni paginación
    para contar los no contestados, y se suscriben a Realtime sin filtro. No escala. Igual `OffersList`, que
-   recarga entero ante cualquier cambio de Realtime, y el `Dashboard`, que al entrar agrega
-   toda la base (productores, entidades, excedentes, canalizaciones, mensajes) en el cliente.
-   Los buscadores de `ProducersList`/`OffersList` filtran **en cliente** sobre lo ya cargado.
+   recarga entero ante cualquier cambio de Realtime; el `Dashboard`, que al entrar agrega
+   toda la base (productores, entidades, excedentes, canalizaciones, mensajes) en el cliente; y
+   **`AppShell`**, que trae toda la tabla `wa_messages` en cada login de una cuenta con panel de equipo
+   para calcular el contador del menú. Los buscadores de `ProducersList`/`OffersList` filtran **en
+   cliente** sobre lo ya cargado.
 6. `Conversation` carga el hilo completo sin paginación.
 7. ~~`ContactList` conserva la prop `single` (modo conversación única)~~ — **resuelto**: esa prop ya
    no existe (props actuales: `contacts`, `loading`, `error`, `selectedPhone`, `onSelect`, `onReload`).
@@ -1723,9 +1773,10 @@ POMA en producción real quedan pasos de configuración y negocio.
     oferta. El resto de la interfaz sigue en `h-9` (36 px), por debajo de los 44 px que recomiendan
     Apple y Google: subirlos todos es rediseñar la aplicación entera para ganar 8 px en botones
     secundarios. Los ítems de los menús desplegables (idioma, `UserMenu`) siguen en 32 px.
-35. **`window.prompt()` para cancelar una oferta** (`productor/OfertaDetall.tsx`). En los navegadores
-    integrados de WhatsApp o Instagram —muy probables en este público— puede estar bloqueado y
-    devolver `null` **en silencio**: cancelar no haría nada y no lo diría. Necesita un diálogo propio.
+35. **`window.prompt()` en dos sitios** (`productor/OfertaDetall.tsx`, para cancelar una oferta; y
+    `equip/Aprovacions.tsx`, para el motivo al rechazar un registro). En los navegadores integrados de
+    WhatsApp o Instagram —muy probables en este público— puede estar bloqueado y devolver `null` **en
+    silencio**: la acción no haría nada y no lo diría. Necesitan un diálogo propio.
 36. **Las pestañas de `/registre` caben con 1 px de margen** a 320 px («Entitat receptora» ocupa 115 px
     en una pastilla de 116). No está roto y por eso no se tocó, pero cualquier traducción más larga o
     un cambio de fuente lo rompe.
@@ -1733,6 +1784,18 @@ POMA en producción real quedan pasos de configuración y negocio.
     dispara ningún navegador de escritorio ni Playwright, así que las pruebas lanzan un evento
     sintético: se verifica que **el banner reacciona**, no que Chrome lo emita. La instalación real
     solo se comprueba en un móvil.
+38. **`vista_defecto` se calcula en el servidor y el frontend lo descarta** (§4bis). El panel inicial
+    de `/panell` se decide por `localStorage` (`preferit`) + `ctx.rols[0]`; el campo no llega siquiera
+    a `ContextSessio`. Inofensivo, pero es lógica servida y no usada.
+39. **`crearExcedente()` no reintenta ante colisión del correlativo.** El comentario de `oferta.ts`
+    dice que un segundo alta simultánea «reintenta con N+1», pero no hay retry: `id_excedente` se
+    calcula contando las filas del día y se hace un único `insert`; si dos altas del mismo
+    productor+producto coinciden en el día, la segunda choca con el `unique` y **falla** en vez de
+    reintentar. Raro a la escala de POMA, pero real (afecta tanto al intake como al panel).
+40. **El albarán se genera con el productor en blanco.** `OfferDetail` pasa `productor: ''` (y
+    `dataHora`/`comentaris` vacíos) a `textoAlbaran`, así que el «RECOLLIDA CONFIRMADA» nunca lleva el
+    nombre del productor aunque esté disponible. Va con el checkpoint del formato definitivo del
+    albarán (§12 checkpoint 4).
 
 ## 13. Al terminar cualquier cambio
 
