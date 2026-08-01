@@ -118,9 +118,18 @@ export default function Mercat() {
               ) : (
                 <Dialog open={obert?.id === o.id} onOpenChange={(v) => !v && setObert(null)}>
                   <DialogTrigger asChild>
-                    <Button size="sm" onClick={() => obre(o)}>{t('mk.interested')}</Button>
+                    {/* Sin `size="sm"` y a 44px en móvil: es la única acción del panel
+                        del receptor y se repite en cada fila. En escritorio vuelve a la
+                        altura normal, donde se pulsa con ratón y 36px sobran. */}
+                    <Button className="h-11 md:h-9" onClick={() => obre(o)}>{t('mk.interested')}</Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  {/* ⚠️ `max-h` + scroll: el diálogo cabe con el teclado cerrado (458px
+                      en 667), pero al enfocar «quants kg» el área visible baja a ~350px
+                      y, sin tope de altura, se recortaba por los dos extremos —incluido
+                      el botón de enviar—, dejando la acción inalcanzable. Se pone aquí y
+                      no en `ui/dialog.tsx` para no cambiar de paso los diálogos del
+                      panel del equipo, que no se han revisado. */}
+                  <DialogContent className="max-h-[85dvh] overflow-y-auto">
                     <DialogHeader><DialogTitle>{t('mk.dialog_title')}</DialogTitle></DialogHeader>
                     <p className="text-sm text-muted-foreground">
                       {t('mk.dialog_desc', { product: o.producto ?? '' })}

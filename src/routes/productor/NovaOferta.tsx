@@ -90,12 +90,19 @@ export default function NovaOferta() {
 
   function control(campo: CampoOferta) {
     const valor = datos[campo.clave]
-    const comuns = 'h-10'
+    // ⚠️ `text-base md:text-sm` NO es cosmético: iOS Safari amplía la página al enfocar
+    // cualquier control por debajo de 16px, y como el viewport renuncia a propósito a
+    // `maximum-scale` (accesibilidad), NO deshace el zoom al salir del campo. Con
+    // `text-sm` a secas, tocar el primer desplegable dejaba el resto del formulario —13
+    // campos— ampliado y desplazándose en horizontal. Es el mismo patrón que ya usa
+    // `components/ui/input.tsx`, y por eso los <input> nunca tuvieron el problema.
+    // La altura pasa de h-10 a h-9 para que dejen de alternar con los Input.
+    const comuns = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-base md:text-sm'
 
     switch (campo.tipo) {
       case 'familia':
         return (
-          <select className={`w-full rounded-md border border-input bg-transparent px-3 text-sm ${comuns}`}
+          <select className={comuns}
             value={String(valor ?? '')} onChange={(e) => set(campo.clave, e.target.value)}>
             <option value="">—</option>
             {(catalogos?.familias ?? []).map((f) => <option key={f} value={f}>{f}</option>)}
@@ -103,7 +110,7 @@ export default function NovaOferta() {
         )
       case 'producte':
         return (
-          <select className={`w-full rounded-md border border-input bg-transparent px-3 text-sm ${comuns}`}
+          <select className={comuns}
             value={String(valor ?? '')} onChange={(e) => set(campo.clave, e.target.value)}
             disabled={!datos.familia}>
             <option value="">—</option>
@@ -112,7 +119,7 @@ export default function NovaOferta() {
         )
       case 'causa':
         return (
-          <select className={`w-full rounded-md border border-input bg-transparent px-3 text-sm ${comuns}`}
+          <select className={comuns}
             value={String(valor ?? '')} onChange={(e) => set(campo.clave, e.target.value)}>
             <option value="">—</option>
             {(catalogos?.causas ?? []).map((c) => (
@@ -122,7 +129,7 @@ export default function NovaOferta() {
         )
       case 'ubicacio':
         return (catalogos?.ubicaciones ?? []).length > 0 ? (
-          <select className={`w-full rounded-md border border-input bg-transparent px-3 text-sm ${comuns}`}
+          <select className={comuns}
             value={String(valor ?? '')} onChange={(e) => set(campo.clave, e.target.value)}>
             <option value="">—</option>
             {(catalogos?.ubicaciones ?? []).map((u) => (
@@ -134,7 +141,7 @@ export default function NovaOferta() {
         )
       case 'opcions':
         return (
-          <select className={`w-full rounded-md border border-input bg-transparent px-3 text-sm ${comuns}`}
+          <select className={comuns}
             value={String(valor ?? '')} onChange={(e) => set(campo.clave, e.target.value)}>
             <option value="">—</option>
             {(campo.opciones ?? []).map((o) => <option key={o.id} value={o.id}>{o.titulo}</option>)}

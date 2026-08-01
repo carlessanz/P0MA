@@ -98,6 +98,20 @@ export default function Landing() {
         >
           {t('land.hero_login')}
         </Link>
+
+        {/* Los mismos dos enlaces del `nav` de arriba, que es `hidden md:flex`: sin esto,
+            por debajo de 768px las dos secciones de la página quedan sin ninguna forma de
+            llegar salvo desplazándose a ciegas por 2.400px. Van aquí y no en una
+            hamburguesa porque son dos: un menú desplegable para dos anclas es más
+            maquinaria que la que resuelve. */}
+        <nav className="mt-8 flex items-center justify-center gap-6 md:hidden" aria-label={t('land.nav_how')}>
+          <a href="#com-funciona" className="py-2 text-sm text-secondary underline underline-offset-4">
+            {t('land.nav_how')}
+          </a>
+          <a href="#per-a-qui" className="py-2 text-sm text-secondary underline underline-offset-4">
+            {t('land.nav_who')}
+          </a>
+        </nav>
       </section>
 
       {/* Cómo funciona: misma maquetación que el tablero del equipo (Dashboard, «dash.how») */}

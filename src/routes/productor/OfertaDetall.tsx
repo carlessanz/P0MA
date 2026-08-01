@@ -57,7 +57,9 @@ export default function ProductorOfertaDetall() {
 
   return (
     <div className="space-y-4">
-      <Button variant="ghost" size="sm" onClick={() => navigate('/productor/ofertes')}
+      {/* Sin `size="sm"`: es el control de navegación de la pantalla y en móvil se toca
+          con el pulgar. */}
+      <Button variant="ghost" onClick={() => navigate('/productor/ofertes')}
         className="text-muted-foreground">
         <ArrowLeft className="size-4" /> {t('po.list_title')}
       </Button>

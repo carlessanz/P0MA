@@ -21,7 +21,15 @@ export default function LayoutAcces({
   const { t } = useT()
 
   return (
-    <div className="grid min-h-dvh place-items-center bg-primary px-4 py-10">
+    // El padding lateral respeta la muesca del iPhone en horizontal, donde 16px no
+    // bastan; `max()` deja el valor de siempre en cualquier otro sitio.
+    <div
+      className="grid min-h-dvh place-items-center bg-primary py-10"
+      style={{
+        paddingLeft: 'max(1rem, env(safe-area-inset-left))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right))',
+      }}
+    >
       <div className={cn('w-full', ample ? 'max-w-md' : 'max-w-sm')}>
         <Link to="/" className="block">
           <img src="/logo-poma.svg" alt="POMA" className="mx-auto mb-8 h-11 w-auto" />

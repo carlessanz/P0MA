@@ -20,6 +20,7 @@ import type { MessageRow } from '../lib/mensajes'
 import AppSidebar from './AppSidebar'
 import BottomNav from './BottomNav'
 import UserMenu from './UserMenu'
+import AvisInstallacio from '../components/AvisInstallacio'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 
 /** Metadatos que cada ruta puede declarar en su `handle`. */
@@ -85,8 +86,19 @@ export default function AppShell() {
     <SidebarProvider className="h-dvh min-h-0 overflow-hidden">
       <AppSidebar comptadors={comptadors} />
       <SidebarInset className="flex h-dvh min-h-0 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b bg-card px-3 md:px-4">
-          <SidebarTrigger className="-ml-1" />
+        {/* El `env(safe-area-inset-*)` lateral solo hace algo en iPhone con muesca EN
+            HORIZONTAL, donde el recorte se come ~44px por cada lado y el `px-3` no
+            llega. `max()` lo deja en el padding de siempre en todo lo demás. */}
+        <header
+          className="flex h-14 shrink-0 items-center gap-2 border-b bg-card"
+          style={{
+            paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+            paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+          }}
+        >
+          {/* `size-9` en vez del `size-7` de shadcn: en móvil es la única entrada al
+              menú lateral completo, y 28px es poco para un pulgar. */}
+          <SidebarTrigger className="-ml-1 size-9" />
           <h1 className="min-w-0 flex-1 truncate text-sm font-semibold md:text-base">
             {handle.titleKey ? t(handle.titleKey) : ''}
           </h1>
@@ -105,11 +117,23 @@ export default function AppShell() {
           {handle.fullBleed
             ? <Outlet />
             : (
-              <div className={cn('mx-auto w-full py-6', handle.ample ? 'w-[96%] px-2' : 'max-w-6xl px-4')}>
+              <div
+                className={cn('mx-auto w-full py-6', handle.ample ? 'w-[96%] px-2' : 'max-w-6xl px-4')}
+                style={{
+                  paddingLeft: `max(${handle.ample ? '0.5rem' : '1rem'}, env(safe-area-inset-left))`,
+                  paddingRight: `max(${handle.ample ? '0.5rem' : '1rem'}, env(safe-area-inset-right))`,
+                }}
+              >
                 <Outlet />
               </div>
             )}
         </main>
+
+        {/* Solo productor y receptor: el equipo trabaja desde el escritorio y no
+            necesita el icono en la pantalla de inicio. El componente ya es `md:hidden`,
+            así que la condición de móvil la pone el CSS y no hay parpadeo en el primer
+            render (`useIsMobile()` devuelve false hasta que corre su efecto). */}
+        {rolActiu !== 'intern' && <AvisInstallacio ambBarraInferior={ambBarraInferior} />}
 
         {ambBarraInferior && <BottomNav items={items} />}
       </SidebarInset>

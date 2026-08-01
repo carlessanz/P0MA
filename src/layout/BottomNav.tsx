@@ -40,7 +40,14 @@ export default function BottomNav({ items }: { items: NavItem[] }) {
                 }}
               >
                 <item.icon className={cn('size-6 transition-transform', actiu && 'scale-110')} />
-                <span className="text-[11px] font-medium leading-none">{t(item.labelKey)}</span>
+                {/* `truncate` + `w-full`: las etiquetas son largas a propósito —`nav.ts`
+                    las eligió únicas entre paneles para que los tooltips del menú
+                    plegado no se repitan—, así que no se pueden acortar. Sin recortar,
+                    «Els meus interessos» rompía a 2-3 líneas en una celda de ~85px y las
+                    cuatro pestañas dejaban de estar alineadas. */}
+                <span className="w-full truncate px-0.5 text-center text-[11px] font-medium leading-none">
+                  {t(item.labelKey)}
+                </span>
               </NavLink>
             </li>
           )

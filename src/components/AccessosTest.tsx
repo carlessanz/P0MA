@@ -43,8 +43,15 @@ export default function AccessosTest() {
                 disabled={ocupat !== null}
                 onClick={() => void entrar(compte.email, compte.password)}
               >
-                <span className="font-medium">{compte.organitzacio}</span>
-                <span className="text-xs font-normal text-muted-foreground">{compte.tipus}</span>
+                {/* `whitespace-normal` deshace el `whitespace-nowrap` que Button trae de
+                    serie: sin él, la etiqueta más larga («…· SENSE WhatsApp») fijaba un
+                    ancho mínimo de 350px que se propagaba por tres niveles de grid y
+                    hacía que /login entero se desplazara en horizontal por debajo de
+                    382px de pantalla. Medido: 6px a 360, 47px a 320. */}
+                <span className="w-full min-w-0 whitespace-normal font-medium">{compte.organitzacio}</span>
+                <span className="w-full min-w-0 whitespace-normal text-xs font-normal text-muted-foreground">
+                  {compte.tipus}
+                </span>
               </Button>
             ))}
           </div>

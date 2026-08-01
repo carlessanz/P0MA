@@ -197,12 +197,44 @@ es solo el shell estático—, y cachear una respuesta de
 PostgREST en un móvil compartido podría servírsela a la siguiente persona. Para retirar el service
 worker de los dispositivos, desplegar una vez con `selfDestroying: true`.
 
+**Aviso de instalación** (2026-08-01, `src/hooks/useInstalacio.ts` + `src/components/AvisInstallacio.tsx`).
+La aplicación era instalable desde el principio, pero la opción vivía en un menú del navegador que
+nadie abre. Ahora se ofrece **solo a productores y receptores en móvil** (`rolActiu !== 'intern'` +
+`md:hidden`); el equipo trabaja desde el escritorio. **Dos caminos que no son intercambiables**:
+Android/Chrome dispara `beforeinstallprompt` y se puede abrir el diálogo real del sistema; **iOS no lo
+dispara y no lo hará**, así que ahí se explican los dos pasos de Compartir → «Afegir a pantalla
+d'inici» — sin esa rama ningún iPhone vería nunca el aviso. ⚠️ El evento es **de un solo uso y llega
+antes del primer render**, por eso lo captura `escoltaInstalacio()` desde `main.tsx` **antes de montar
+React** y lo guarda en estado de módulo; escucharlo dentro de un componente llega tarde y el aviso no
+saldría nunca. El banner es **hermano flex `shrink-0`, no `fixed`** —mismo contrato de alturas que la
+barra inferior—, así que resta alto al `main` y no tapa nada. Quien lo descarta no lo vuelve a ver en
+**30 días**: `poma-install-descartat` guarda la **fecha**, no un booleano, porque un booleano no sabe
+expresar eso.
+
 **Responsive** (breakpoint `md`, 768px). Los **listados** van
 en tabla con `overflow-x-auto` (scroll horizontal en móvil); los **detalles/CRUD** usan grids
 `sm:grid-cols-2`. La **mensajería** usa patrón **lista↔conversación**: en móvil la lista ocupa toda
 la pantalla y, al elegir un contacto, la conversación pasa a pantalla completa con botón «atrás»
 (`Conversation` recibe `onBack`); en escritorio conviven las dos columnas. La vista de mensajería
 usa `h-dvh` para que el composer no quede bajo la barra del navegador móvil.
+
+**Tres reglas de móvil que se comprobaron midiendo, no leyendo** (2026-08-01; auditoría con
+Playwright a 320/360/390 px sobre las 11 rutas, públicas y privadas — **0 px de desbordamiento
+horizontal en todas**, que es la referencia a mantener):
+
+1. ⚠️ **Ningún control de formulario por debajo de 16 px en móvil.** iOS Safari amplía la página al
+   enfocar un campo con `font-size < 16px` y, como el viewport renuncia a `maximum-scale` a propósito
+   (accesibilidad), **no deshace el zoom al salir**. `Input`/`Textarea` de shadcn ya traen
+   `text-base md:text-sm`; los `<select>` nativos de `NovaOferta` no, y tocar el primer desplegable
+   dejaba los 13 campos restantes ampliados y desplazándose en horizontal. **Cualquier control
+   estilado a mano tiene que repetir ese `text-base md:text-sm`.**
+2. **`whitespace-nowrap` viene de serie en `Button`.** Una etiqueta larga dentro de un botón fija un
+   ancho mínimo que se **propaga hacia arriba por los grids** y termina desplazando la página entera
+   (pasó en `/login`: 47 px a 320 px de ancho). Si el texto de un botón puede crecer, `whitespace-normal`.
+3. **`env(safe-area-inset-left/right)` importa en horizontal.** `viewport-fit=cover` lleva el
+   contenido hasta el borde físico; sin el `env()` lateral, en iPhone con muesca el contenido queda
+   bajo el recorte. Se aplica con `max(padding, env(...))` en `AppShell` y `LayoutAcces`; la barra
+   inferior ya cubría el `bottom`.
 
 ## 3. Estructura
 
@@ -223,6 +255,7 @@ src/
   hooks/useAppContext.tsx      get_my_session_context(): quién eres (§4bis). El panel activo se
                                DERIVA de la URL; useOrganitzacio(tipus) para las pantallas
   hooks/use-mobile.ts          Hook del breakpoint (lo usa el sidebar de shadcn)
+  hooks/useInstalacio.ts       ¿Se puede instalar la PWA, y cómo? (automática o manual iOS; §2)
   routes/Comuns.tsx            ArrelApp, RequireSessio, raíz por rol, RoleGuard y «sense accés»
   routes/public/               Landing, LoginUsuaris (/login), LoginEquip (/admin),
                                Registre (/registre) y RestablirClau (/restablir) — §6quater
@@ -253,6 +286,7 @@ src/
     crudCampos.ts              Definiciones de campos para el CRUD (claves i18n f.*)
     textos.ts                  RECOLLIDA CONFIRMADA y albarán (los compone el panel)
   components/
+    AvisInstallacio.tsx        Banner de «instal·la POMA» en móvil, productor y receptor (§2)
     LayoutAcces.tsx            Marco navy de las pantallas de acceso (+ ComprovantSessio)
     FormulariAcces.tsx         Entrar y pedir enlace de recuperación (+ BotoUll)
     SelectorIdioma.tsx         Idioma suelto, para lo público (dentro va en UserMenu)
@@ -1684,6 +1718,21 @@ POMA en producción real quedan pasos de configuración y negocio.
     «Registres pendents» también vuelve a tener con qué probarse**, que hoy está vacía.
 33. **Borrar una organización de prueba deja rastro en `email_test_recipients`.** No hay FK: la tabla
     guarda un correo suelto (§4). Pasó dos veces el 31-07-2026 y se limpió a mano.
+34. **Áreas táctiles: se subieron las cuatro que importan, no todas.** «M'interessa» (44 px en móvil),
+    el `SidebarTrigger` (36), el ojo de la contraseña (de 16×16 a 32×32) y el «atrás» del detalle de
+    oferta. El resto de la interfaz sigue en `h-9` (36 px), por debajo de los 44 px que recomiendan
+    Apple y Google: subirlos todos es rediseñar la aplicación entera para ganar 8 px en botones
+    secundarios. Los ítems de los menús desplegables (idioma, `UserMenu`) siguen en 32 px.
+35. **`window.prompt()` para cancelar una oferta** (`productor/OfertaDetall.tsx`). En los navegadores
+    integrados de WhatsApp o Instagram —muy probables en este público— puede estar bloqueado y
+    devolver `null` **en silencio**: cancelar no haría nada y no lo diría. Necesita un diálogo propio.
+36. **Las pestañas de `/registre` caben con 1 px de margen** a 320 px («Entitat receptora» ocupa 115 px
+    en una pastilla de 116). No está roto y por eso no se tocó, pero cualquier traducción más larga o
+    un cambio de fuente lo rompe.
+37. **El aviso de instalación no se puede probar de verdad en automático.** `beforeinstallprompt` no lo
+    dispara ningún navegador de escritorio ni Playwright, así que las pruebas lanzan un evento
+    sintético: se verifica que **el banner reacciona**, no que Chrome lo emita. La instalación real
+    solo se comprueba en un móvil.
 
 ## 13. Al terminar cualquier cambio
 

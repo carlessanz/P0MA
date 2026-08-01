@@ -21,11 +21,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 /** Botón de mostrar/ocultar contraseña. Lo comparten el login, el registro y el reset. */
 export function BotoUll({ vist, onToggle }: { vist: boolean; onToggle: () => void }) {
   const { t } = useT()
+  // El icono mide 16px: sin relleno, la zona pulsable eran 16×16 px y era el peor
+  // objetivo táctil de la aplicación. El `p-2` la lleva a 32×32 sin mover el icono de
+  // sitio (el `right-1` compensa el relleno nuevo).
   return (
     <button
       type="button"
       onClick={onToggle}
-      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+      className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-2 text-muted-foreground hover:text-foreground"
       tabIndex={-1}
       aria-label={vist ? t('login.hide') : t('login.show')}
     >
